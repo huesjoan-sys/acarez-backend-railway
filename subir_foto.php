@@ -1,5 +1,17 @@
 <?php
+// Manejar solicitud OPTIONS (preflight CORS)
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type');
+    http_response_code(200);
+    exit;
+}
+
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
 
 $carpetas = [
     'inicio' => 'km_inicio/',
@@ -12,8 +24,8 @@ $carpetas = [
     'comida_regreso' => 'comida/',
     'estac_ida' => 'estacionamiento/',
     'estac_regreso' => 'estacionamiento/',
-    'gasolina_ida' => 'gasolina/',      // ← NUEVO
-    'gasolina_regreso' => 'gasolina/',  // ← NUEVO
+    'gasolina_ida' => 'gasolina/',
+    'gasolina_regreso' => 'gasolina/',
 ];
 
 $tipo = $_POST['tipo'] ?? 'general';

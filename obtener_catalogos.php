@@ -2,12 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 
-$conn = new mysqli('localhost', 'root', '', 'acarez_logistica');
-
-if ($conn->connect_error) {
-    echo json_encode(['error' => 'Conexión fallida']);
-    exit;
-}
+require_once 'conexion.php';
 
 $placas = [];
 $no_economico = [];

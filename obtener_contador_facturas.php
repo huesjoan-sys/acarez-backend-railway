@@ -1,11 +1,8 @@
 <?php
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
 
-$conn = new mysqli('localhost', 'root', '', 'acarez_logistica');
-if ($conn->connect_error) {
-    echo json_encode(['error' => 'Error de conexión: ' . $conn->connect_error]);
-    exit;
-}
+require_once 'conexion.php';
 
 $chofer = isset($_GET['chofer']) ? trim($_GET['chofer']) : '';
 $fecha = isset($_GET['fecha']) ? trim($_GET['fecha']) : date('Y-m-d');

@@ -2,12 +2,9 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
 
-$conn = new mysqli('localhost', 'root', '', 'acarez_logistica');
-if ($conn->connect_error) {
-    echo json_encode(['mensaje' => 'Error conexion DB: ' . $conn->connect_error]);
-    exit;
-}
+require_once 'conexion.php';
 
 // ==================== RECIBIR TODOS LOS CAMPOS ====================
 $chofer = $conn->real_escape_string($_POST['chofer'] ?? '');
@@ -19,7 +16,7 @@ $origen_regreso = $conn->real_escape_string($_POST['origen_regreso'] ?? '');
 $destino_regreso = $conn->real_escape_string($_POST['destino_regreso'] ?? '');
 $direccion_actual = $conn->real_escape_string($_POST['direccion_actual'] ?? '');
 
-// ==================== KILOMETRAJE (NUEVO) ====================
+// ==================== KILOMETRAJE ====================
 $km_inicial = floatval($_POST['km_inicial'] ?? 0);
 $km_final   = floatval($_POST['km_final'] ?? 0);
 $km_total   = floatval($_POST['km_total'] ?? 0);
