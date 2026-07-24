@@ -4,11 +4,7 @@
 // ============================================
 
 session_start();
-$conn = new mysqli('localhost', 'root', '', 'acarez_logistica');
-
-if ($conn->connect_error) {
-    die("Conexión fallida: " . $conn->connect_error);
-}
+require_once 'conexion.php';   // ← NUEVA LÍNEA (reemplaza la conexión manual)
 
 $seccion = $_GET['seccion'] ?? 'reportes';
 $semana_seleccionada = $_GET['semana_facturar'] ?? '';

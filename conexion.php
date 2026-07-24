@@ -1,14 +1,13 @@
 <?php
+$host = getenv('MYSQLHOST') ?: 'localhost';
+$port = getenv('MYSQLPORT') ?: '3306';
+$dbname = getenv('MYSQLDATABASE') ?: 'acarez_logistica';
+$user = getenv('MYSQLUSER') ?: 'root';
+$password = getenv('MYSQLPASSWORD') ?: '';
 
-$conexion = new mysqli(
-"localhost",
-"root",
-"",
-"acarez_logistica"
-);
+$conn = new mysqli($host, $user, $password, $dbname, $port);
 
-if ($conexion->connect_error) {
-die("Error de conexión");
+if ($conn->connect_error) {
+    die(json_encode(['error' => 'Error de conexión: ' . $conn->connect_error]));
 }
-
 ?>
