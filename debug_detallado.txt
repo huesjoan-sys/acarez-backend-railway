@@ -1,0 +1,38 @@
+
+=== 2026-04-06 18:58:59 ===
+POST: Array
+(
+    [chofer] => jhgjj
+    [placas] => hgfj
+    [origen_ida] => hghj
+    [destino_ida] => hgh
+    [origen_regreso] => vcgj
+    [destino_regreso] => hfhj
+    [direccion_actual] => C. 10 242, Porvenir, Ciudad de México
+    [total_ida] => 0.0
+    [total_regreso] => 0.0
+    [foto_inicio] => 
+    [foto_fin] => 
+    [gasto_hotel_ida] => 0.0
+    [gasto_hotel_reg] => 0.0
+    [gasto_caseta_ida] => 0.0
+    [gasto_caseta_reg] => 0.0
+    [gasto_comida_ida] => 0.0
+    [gasto_comida_reg] => 0.0
+    [gasto_estac_ida] => 0.0
+    [gasto_estac_reg] => 0.0
+    [foto_hotel_ida] => 
+    [foto_hotel_regreso] => 
+    [foto_caseta_ida] => 
+    [foto_caseta_regreso] => 
+    [foto_comida_ida] => 
+    [foto_comida_regreso] => 
+    [foto_estac_ida] => 
+    [foto_estac_regreso] => 
+)
+
+GET: Array
+(
+)
+
+RAW INPUT: chofer=jhgjj&placas=hgfj&origen_ida=hghj&destino_ida=hgh&origen_regreso=vcgj&destino_regreso=hfhj&direccion_actual=C.+10+242%2C+Porvenir%2C+Ciudad+de+M%C3%A9xico&total_ida=0.0&total_regreso=0.0&foto_inicio=&foto_fin=&gasto_hotel_ida=0.0&gasto_hotel_reg=0.0&gasto_caseta_ida=0.0&gasto_caseta_reg=0.0&gasto_comida_ida=0.0&gasto_comida_reg=0.0&gasto_estac_ida=0.0&gasto_estac_reg=0.0&foto_hotel_ida=&foto_hotel_regreso=&foto_caseta_ida=&foto_caseta_regreso=&foto_comida_ida=&foto_comida_regreso=&foto_estac_ida=&foto_estac_regreso=
