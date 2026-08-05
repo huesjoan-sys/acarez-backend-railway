@@ -1,13 +1,10 @@
 <?php
-// Limpiar cualquier salida previa (espacios, BOM, etc.)
-ob_clean();
-
-// Configurar cabeceras para Excel
+// Configurar cabeceras para Excel (sin usar ob_clean)
 header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
 header('Content-Disposition: attachment; filename="reportes_acarez.xls"');
 header('Cache-Control: max-age=0');
 
-// Usar la conexión centralizada (compatible con Render/Railway)
+// Usar la conexión centralizada
 require_once 'conexion.php';
 
 // Obtener filtros
@@ -49,7 +46,7 @@ while ($row = $result->fetch_assoc()) {
     $fecha = date('d/m/Y', strtotime($fecha_completa));
     $hora = date('H:i:s', strtotime($fecha_completa));
     
-    // Escapar caracteres que puedan romper el formato (opcional)
+    // Escapar caracteres que puedan romper el formato
     $chofer = str_replace(["\t", "\n", "\r"], " ", $row['chofer']);
     $placas = str_replace(["\t", "\n", "\r"], " ", $row['placas']);
     $origen_ida = str_replace(["\t", "\n", "\r"], " ", $row['origen_ida']);
