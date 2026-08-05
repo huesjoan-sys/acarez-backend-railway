@@ -1,12 +1,13 @@
 <?php
-// Limpiar cualquier salida previa
-ob_clean();
+// Iniciar buffer de salida para controlar cualquier salida no deseada
+ob_start();
 
-// Cabeceras para que Excel interprete el archivo como HTML
+// Configurar cabeceras para Excel (HTML)
 header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
 header('Content-Disposition: attachment; filename="reportes_acarez.xls"');
 header('Cache-Control: max-age=0');
 
+// Incluir la conexión a la base de datos
 require_once 'conexion.php';
 
 // Obtener filtros
@@ -33,7 +34,9 @@ $sql = "SELECT * FROM viajes $where ORDER BY id DESC";
 $result = $conn->query($sql);
 
 if (!$result) {
-    die("Error en la consulta: " . $conn->error);
+    // Si hay error, mostrar mensaje simple y salir
+    echo "Error en la consulta: " . $conn->error;
+    exit;
 }
 
 // ========== GENERAR HTML CON FORMATO ==========
@@ -44,54 +47,17 @@ if (!$result) {
     <meta charset="UTF-8">
     <title>Reporte ACAREZ</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            font-size: 11px;
-        }
-        h1 {
-            color: #4A148C;
-            font-size: 18px;
-            margin-bottom: 5px;
-        }
-        .fecha {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 15px;
-        }
-        table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        th {
-            background-color: #4A148C;
-            color: white;
-            font-weight: bold;
-            padding: 8px 6px;
-            border: 1px solid #3C096C;
-            text-align: center;
-        }
-        td {
-            padding: 6px 4px;
-            border: 1px solid #ddd;
-            text-align: left;
-        }
-        .numero {
-            text-align: right;
-        }
-        .moneda {
-            text-align: right;
-            font-weight: 500;
-        }
-        .total-general {
-            font-weight: bold;
-            color: #4A148C;
-        }
-        .fila-alternativa {
-            background-color: #f9f9f9;
-        }
-        .id-col {
-            text-align: center;
-        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; }
+        h1 { color: #4A148C; font-size: 18px; margin-bottom: 5px; }
+        .fecha { font-size: 12px; color: #666; margin-bottom: 15px; }
+        table { border-collapse: collapse; width: 100%; }
+        th { background-color: #4A148C; color: white; font-weight: bold; padding: 8px 6px; border: 1px solid #3C096C; text-align: center; }
+        td { padding: 6px 4px; border: 1px solid #ddd; text-align: left; }
+        .numero { text-align: right; }
+        .moneda { text-align: right; font-weight: 500; }
+        .total-general { font-weight: bold; color: #4A148C; }
+        .fila-alternativa { background-color: #f9f9f9; }
+        .id-col { text-align: center; }
     </style>
 </head>
 <body>
@@ -133,7 +99,6 @@ while ($row = $result->fetch_assoc()) {
     $fecha = date('d/m/Y', strtotime($fecha_completa));
     $hora = date('H:i:s', strtotime($fecha_completa));
     
-    // Escapar caracteres especiales para HTML
     $chofer = htmlspecialchars($row['chofer'] ?? '');
     $placas = htmlspecialchars($row['placas'] ?? '');
     $origen_ida = htmlspecialchars($row['origen_ida'] ?? '');
@@ -172,5 +137,7 @@ while ($row = $result->fetch_assoc()) {
 </html>
 <?php
 $conn->close();
+// Vaciar buffer y enviar salida
+ob_end_flush();
 exit;
 ?>
