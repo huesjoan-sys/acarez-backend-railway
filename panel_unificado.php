@@ -522,10 +522,10 @@ function exportarCSV() {
     window.location.href = 'exportar_csv.php?' + params.toString();
 }
 
-// ==================== EXPORTAR PDF ====================
+// ==================== EXPORTAR PDF (CORREGIDO) ====================
 function exportarPDF() {
     let params = new URLSearchParams(window.location.search);
-    window.location.href = 'exportar_pdf.php?' + params.toString();
+    window.location.href = 'exportar_pdf_tcpdf.php?' + params.toString();
 }
 
 function verImagenGrande(src) {
