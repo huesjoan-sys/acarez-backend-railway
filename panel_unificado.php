@@ -208,8 +208,8 @@ function manejarCatalogos($conn) {
         .btn-primary { background: #4A148C; color: white; }
         .btn-success { background: #6A1B9A; color: white; }
         .btn-info { background: #17a2b8; color: white; }
-        .btn-warning { background: #ffc107; color: #222; }
         .btn-danger { background: #dc3545; color: white; }
+        .btn-warning { background: #ffc107; color: #222; }
         .form-inline { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
         .form-inline input, .form-inline select { padding: 8px; border: 1px solid #ddd; border-radius: 5px; }
         #logoFijo {
@@ -342,8 +342,8 @@ function manejarCatalogos($conn) {
                 <button type="submit" class="btn btn-primary">Filtrar</button>
                 <a href="?seccion=reportes" class="btn btn-primary">Limpiar</a>
                 <button type="button" class="btn btn-success" onclick="exportarExcel()">Exportar Excel</button>
-                <!-- NUEVO BOTÓN PARA CSV -->
                 <button type="button" class="btn btn-info" onclick="exportarCSV()">📱 Exportar CSV (Celular)</button>
+                <button type="button" class="btn btn-danger" onclick="exportarPDF()">📄 Exportar PDF</button>
                 <button type="button" class="btn btn-success" id="btnDetalleSemana" style="background:#17a2b8; color:white;">📋 Detalle Semana</button>
             </form>
         </div>
@@ -517,10 +517,15 @@ function exportarExcel() {
     window.location.href = 'exportar_excel.php?' + params.toString();
 }
 
-// NUEVA FUNCIÓN PARA EXPORTAR CSV
 function exportarCSV() {
     let params = new URLSearchParams(window.location.search);
     window.location.href = 'exportar_csv.php?' + params.toString();
+}
+
+// ==================== EXPORTAR PDF ====================
+function exportarPDF() {
+    let params = new URLSearchParams(window.location.search);
+    window.location.href = 'exportar_pdf.php?' + params.toString();
 }
 
 function verImagenGrande(src) {
