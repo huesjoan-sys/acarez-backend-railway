@@ -1,11 +1,19 @@
 <?php
 // exportar_pdf.php
-require_once 'vendor/autoload.php';
-require_once 'conexion.php';
+
+// ========== VERIFICAR AUTOLOADER ==========
+$autoloadPath = __DIR__ . '/vendor/autoload.php';
+if (!file_exists($autoloadPath)) {
+    die("❌ Error: No se encontró el autoloader de Composer en: " . $autoloadPath . 
+        ". Asegúrate de que la carpeta 'vendor/' existe y está subida al servidor.");
+}
+require_once $autoloadPath;
+
+require_once __DIR__ . '/conexion.php';
 
 use Dompdf\Dompdf;
 
-// Obtener filtros (igual que en exportar_excel.php)
+// Obtener filtros
 $semana = $_GET['semana'] ?? '';
 $fecha_inicio = $_GET['fecha_inicio'] ?? '';
 $fecha_fin = $_GET['fecha_fin'] ?? '';
@@ -31,7 +39,7 @@ if (!$result) {
     die("Error en la consulta: " . $conn->error);
 }
 
-// Inicializar variables para resúmenes
+// Inicializar variables
 $total_viajes = 0;
 $total_km = 0;
 $total_gastos = 0;
@@ -41,7 +49,7 @@ $total_comida = 0;
 $total_estac = 0;
 $total_gasolina = 0;
 
-// Construir el contenido HTML del PDF
+// Construir HTML
 $html = '<!DOCTYPE html>
 <html>
 <head>
@@ -74,7 +82,7 @@ $html = '<!DOCTYPE html>
     <div class="sub">Generado: ' . date('d/m/Y H:i:s') . '</div>
 </div>';
 
-// Mostrar filtros aplicados
+// Mostrar filtros
 if (!empty($semana)) {
     $week = substr($semana, 6);
     $year = substr($semana, 0, 4);
@@ -85,7 +93,7 @@ if (!empty($semana)) {
     $html .= '<div class="filtro"><strong>Filtro:</strong> Todos los viajes</div>';
 }
 
-// Tabla de viajes
+// Tabla
 $html .= '<table>
 <thead>
     <tr>
@@ -139,7 +147,7 @@ while ($row = $result->fetch_assoc()) {
 
 $html .= '</tbody></table>';
 
-// Resumen final
+// Resumen
 $html .= '
 <div class="resumen">
     <h3 style="text-align:center; color:#4A148C;">📊 Resumen del Período</h3>
@@ -164,15 +172,13 @@ $html .= '
 </html>';
 
 // ========== GENERAR PDF ==========
-// Configurar opciones directamente en el objeto Dompdf (compatible con v0.6.2)
 $dompdf = new Dompdf();
 $dompdf->set_option('defaultFont', 'helvetica');
-$dompdf->set_option('isRemoteEnabled', true); // para imágenes externas (logo)
+$dompdf->set_option('isRemoteEnabled', true);
 $dompdf->loadHtml($html);
 $dompdf->setPaper('A4', 'portrait');
 $dompdf->render();
 
-// Salida al navegador (Attachment = 0 para mostrar en navegador, o 1 para descargar)
 $dompdf->stream("reporte_viajes_" . date('Ymd_His') . ".pdf", array("Attachment" => 1));
 exit;
 ?>
