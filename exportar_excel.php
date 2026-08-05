@@ -40,24 +40,12 @@ if (!$result) {
     <meta charset="UTF-8">
     <title>Reporte ACAREZ</title>
     <style>
-        /* Estilos generales (Excel también los respeta en parte) */
         body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; }
         h1 { color: #4A148C; font-size: 18px; }
         .fecha { font-size: 12px; color: #666; margin-bottom: 15px; }
         table { border-collapse: collapse; width: 100%; }
-        th {
-            background-color: #4A148C;
-            color: #FFFFFF;
-            font-weight: bold;
-            padding: 8px 6px;
-            border: 1px solid #3C096C;
-            text-align: center;
-        }
-        td {
-            padding: 6px 4px;
-            border: 1px solid #ddd;
-            text-align: left;
-        }
+        th { background-color: #4A148C; color: #FFFFFF; font-weight: bold; padding: 8px 6px; border: 1px solid #3C096C; text-align: center; }
+        td { padding: 6px 4px; border: 1px solid #ddd; text-align: left; }
         .numero { text-align: right; }
         .moneda { text-align: right; font-weight: 500; }
         .total-general { font-weight: bold; color: #4A148C; }
@@ -82,11 +70,11 @@ if (!$result) {
                 <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">ORIGEN REGRESO</th>
                 <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">DESTINO REGRESO</th>
                 <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">DIRECCIÓN</th>
-                <!-- NUEVAS COLUMNAS DE KILOMETRAJE -->
+                <!-- COLUMNAS DE KILOMETRAJE -->
                 <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:center;">KM INICIAL</th>
                 <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:center;">KM FINAL</th>
                 <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:center;">KM TOTAL</th>
-                <!-- FIN NUEVAS COLUMNAS -->
+                <!-- FIN COLUMNAS KM -->
                 <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">TOTAL IDA</th>
                 <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">TOTAL REGRESO</th>
                 <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">TOTAL GENERAL</th>
@@ -117,10 +105,10 @@ while ($row = $result->fetch_assoc()) {
     $destino_regreso = htmlspecialchars($row['destino_regreso'] ?? '');
     $direccion = htmlspecialchars($row['direccion_actual'] ?? '');
     
-    // Kilometraje
-    $km_inicial = $row['km_inicial'] ?? 0;
-    $km_final = $row['km_final'] ?? 0;
-    $km_total = $row['km_total'] ?? 0;
+    // Kilometraje (sin separadores de miles)
+    $km_inicial = number_format($row['km_inicial'] ?? 0, 0, '.', '');
+    $km_final   = number_format($row['km_final'] ?? 0, 0, '.', '');
+    $km_total   = number_format($row['km_total'] ?? 0, 0, '.', '');
 ?>
             <tr class="<?= $clase ?>">
                 <td style="text-align:center;"><?= $row['id'] ?></td>
@@ -133,10 +121,10 @@ while ($row = $result->fetch_assoc()) {
                 <td><?= $origen_regreso ?></td>
                 <td><?= $destino_regreso ?></td>
                 <td><?= $direccion ?></td>
-                <!-- KILOMETRAJE -->
-                <td style="text-align:center;"><?= number_format($km_inicial, 0) ?></td>
-                <td style="text-align:center;"><?= number_format($km_final, 0) ?></td>
-                <td style="text-align:center; font-weight:bold;"><?= number_format($km_total, 0) ?></td>
+                <!-- KILOMETRAJE SIN COMAS -->
+                <td style="text-align:center;"><?= $km_inicial ?></td>
+                <td style="text-align:center;"><?= $km_final ?></td>
+                <td style="text-align:center; font-weight:bold;"><?= $km_total ?></td>
                 <!-- FIN KILOMETRAJE -->
                 <td style="text-align:right;">$<?= number_format($row['total_ida'] ?? 0, 2) ?></td>
                 <td style="text-align:right;">$<?= number_format($row['total_regreso'] ?? 0, 2) ?></td>
