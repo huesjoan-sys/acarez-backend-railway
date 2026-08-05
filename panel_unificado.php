@@ -4,7 +4,7 @@
 // ============================================
 
 session_start();
-require_once 'conexion.php';   // ← NUEVA LÍNEA (reemplaza la conexión manual)
+require_once 'conexion.php';
 
 $seccion = $_GET['seccion'] ?? 'reportes';
 $semana_seleccionada = $_GET['semana_facturar'] ?? '';
@@ -57,7 +57,7 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
 }
 
 // ==============================================
-// FUNCIONES DE APOYO (se mantienen)
+// FUNCIONES DE APOYO
 // ==============================================
 function obtenerReportes($conn, $filtros = []) {
     $where = "";
@@ -137,7 +137,6 @@ function manejarCatalogos($conn) {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
-        
         .header {
             background: #ffffff;
             height: 70px;
@@ -164,11 +163,7 @@ function manejarCatalogos($conn) {
             align-items: center;
             gap: 10px;
         }
-        .logo-header img {
-            height: 50px;
-            width: auto;
-        }
-        
+        .logo-header img { height: 50px; width: auto; }
         .sidebar {
             position: fixed;
             top: 0; left: -280px;
@@ -189,15 +184,12 @@ function manejarCatalogos($conn) {
             background: #6A1B9A;
             border-left-color: #ffc107;
         }
-        
         .overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.5); z-index: 150; display: none;
         }
         .overlay.show { display: block; }
-        
         .main-content { margin-top: 80px; padding: 20px; }
-        
         .card {
             background: white;
             border-radius: 12px;
@@ -208,14 +200,7 @@ function manejarCatalogos($conn) {
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #4A148C; color: white; }
-        
-        .tabla-catalogo th,
-        .tabla-catalogo td {
-            padding: 6px 12px;
-            line-height: 1.4;
-            vertical-align: middle;
-        }
-        
+        .tabla-catalogo th, .tabla-catalogo td { padding: 6px 12px; line-height: 1.4; vertical-align: middle; }
         .btn {
             padding: 8px 16px; border: none; border-radius: 6px;
             cursor: pointer; font-weight: bold; transition: 0.3s;
@@ -224,24 +209,17 @@ function manejarCatalogos($conn) {
         .btn-success { background: #6A1B9A; color: white; }
         .btn-warning { background: #ffc107; color: #222; }
         .btn-danger { background: #dc3545; color: white; }
-        
         .form-inline { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
         .form-inline input, .form-inline select { padding: 8px; border: 1px solid #ddd; border-radius: 5px; }
-        
         #logoFijo {
             position: fixed;
             bottom: 20px;
             left: 20px;
-            width: 80px;
-            height: 80px;
+            width: 80px; height: 80px;
             z-index: 1000;
             cursor: pointer;
         }
-        #logoFijo img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
+        #logoFijo img { width: 100%; height: 100%; object-fit: contain; }
         .girar-logo {
             animation: girarInfinito 5s linear;
         }
@@ -249,7 +227,6 @@ function manejarCatalogos($conn) {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        
         .detalle-modal {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 2000;
@@ -281,22 +258,10 @@ function manejarCatalogos($conn) {
             object-fit: cover; border-radius: 8px;
             cursor: pointer; border: 1px solid #ddd;
         }
-        
-        .resumen-dia {
-            background-color: #f0f0f0;
-            font-weight: bold;
-        }
-        
-        /* Estilos para la tabla del detalle de semana (evita amontonamiento) */
-        .tabla-semana {
-            min-width: 1000px;
-            white-space: nowrap;
-        }
-        .tabla-semana th, .tabla-semana td {
-            white-space: nowrap;
-            padding: 8px 12px;
-        }
-        
+        .resumen-dia { background-color: #f0f0f0; font-weight: bold; }
+        .tabla-semana { min-width: 1000px; white-space: nowrap; }
+        .tabla-semana th, .tabla-semana td { white-space: nowrap; padding: 8px 12px; }
+        .btn-pequeno { padding: 4px 10px; font-size: 12px; }
         @media (max-width: 768px) {
             .grid-2col { grid-template-columns: 1fr; }
             #logoFijo { width: 60px; height: 60px; }
@@ -393,6 +358,8 @@ function manejarCatalogos($conn) {
                                 <th>Chofer</th>
                                 <th>Placas</th>
                                 <th>No. Eco</th>
+                                <th>Km Inicial</th>   <!-- NUEVA COLUMNA -->
+                                <th>Km Final</th>     <!-- NUEVA COLUMNA -->
                                 <th>Km Recorrido</th>
                                 <th>Total Gastos</th>
                                 <th>Acciones</th>
@@ -403,14 +370,16 @@ function manejarCatalogos($conn) {
                         $fecha_actual = '';
                         $suma_km_dia = 0;
                         while($row = $reportes->fetch_assoc()): 
-                            $km_total = isset($row['km_total']) ? floatval($row['km_total']) : 0;
+                            $km_inicial = isset($row['km_inicial']) ? floatval($row['km_inicial']) : 0;
+                            $km_final   = isset($row['km_final']) ? floatval($row['km_final']) : 0;
+                            $km_total   = isset($row['km_total']) ? floatval($row['km_total']) : 0;
                             $fecha_row = date('Y-m-d', strtotime($row['fecha']));
                             
                             if ($fecha_actual != '' && $fecha_actual != $fecha_row) {
                                 echo '<tr class="resumen-dia">
-                                        <td colspan="5" style="text-align:right;">Total Km del día ' . date('d/m/Y', strtotime($fecha_actual)) . ':</td>
+                                        <td colspan="8" style="text-align:right;">Total Km del día ' . date('d/m/Y', strtotime($fecha_actual)) . ':</td>
                                         <td colspan="1">' . number_format($suma_km_dia, 0) . ' km</td>
-                                        <td colspan="2"></td>
+                                        <td colspan="1"></td>
                                       </tr>';
                                 $suma_km_dia = 0;
                             }
@@ -423,18 +392,21 @@ function manejarCatalogos($conn) {
                                 <td><?= htmlspecialchars($row['chofer']) ?></td>
                                 <td><?= htmlspecialchars($row['placas']) ?></td>
                                 <td><?= htmlspecialchars($row['no_economico']) ?></td>
+                                <td><?= number_format($km_inicial, 0) ?></td>
+                                <td><?= number_format($km_final, 0) ?></td>
                                 <td><?= number_format($km_total, 0) ?> km</td>
                                 <td style="font-weight: bold; color: #4A148C;">$<?= number_format($row['total_general'], 2) ?></td>
                                 <td>
-                                    <button class="btn btn-primary" onclick="verDetalle(<?= $row['id'] ?>)">Ver Detalle</button>
+                                    <button class="btn btn-primary btn-pequeno" onclick="verDetalle(<?= $row['id'] ?>)">Ver</button>
+                                    <button class="btn btn-danger btn-pequeno" onclick="eliminarViaje(<?= $row['id'] ?>)">Eliminar</button>
                                 </td>
                             </tr>
                         <?php endwhile; ?>
                         <?php if ($fecha_actual != ''): ?>
                             <tr class="resumen-dia">
-                                <td colspan="5" style="text-align:right;">Total Km del día <?= date('d/m/Y', strtotime($fecha_actual)) ?>:</td>
+                                <td colspan="8" style="text-align:right;">Total Km del día <?= date('d/m/Y', strtotime($fecha_actual)) ?>:</td>
                                 <td colspan="1"><?= number_format($suma_km_dia, 0) ?> km</td>
-                                <td colspan="2"></td>
+                                <td colspan="1"></td>
                             </tr>
                         <?php endif; ?>
                         </tbody>
@@ -445,6 +417,7 @@ function manejarCatalogos($conn) {
         
     <?php elseif ($seccion == 'catalogos'): ?>
         <?php $catalogos = manejarCatalogos($conn); ?>
+        <!-- Contenido de catálogos (sin cambios) -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div class="card">
                 <h2>📋 Placas</h2>
@@ -454,9 +427,7 @@ function manejarCatalogos($conn) {
                 </form>
                 <div style="overflow-x: auto;">
                     <table class="tabla-catalogo">
-                        <thead>
-                            <tr><th style="width:50px;">ID</th><th>Placa</th><th style="width:180px;">Acciones</th></tr>
-                        </thead>
+                        <thead><tr><th>ID</th><th>Placa</th><th>Acciones</th></tr></thead>
                         <tbody>
                             <?php while($row = $catalogos['placas']->fetch_assoc()): ?>
                             <tr>
@@ -477,9 +448,7 @@ function manejarCatalogos($conn) {
                 </form>
                 <div style="overflow-x: auto;">
                     <table class="tabla-catalogo">
-                        <thead>
-                            <tr><th>ID</th><th>Número Económico</th><th>Acciones</th></tr>
-                        </thead>
+                        <thead><tr><th>ID</th><th>Número Económico</th><th>Acciones</th></tr></thead>
                         <tbody>
                             <?php while($row = $catalogos['no_economicos']->fetch_assoc()): ?>
                             <tr>
@@ -503,9 +472,7 @@ function manejarCatalogos($conn) {
             </form>
             <div style="overflow-x: auto; margin-top: 15px;">
                 <table class="tabla-catalogo">
-                    <thead>
-                        <tr><th>ID</th><th>Nombre del Chofer</th><th>Placas</th><th>No. Económico</th><th>Acciones</th></tr>
-                    </thead>
+                    <thead><tr><th>ID</th><th>Nombre</th><th>Placas</th><th>No. Económico</th><th>Acciones</th></tr></thead>
                     <tbody>
                         <?php while($row = $catalogos['choferes']->fetch_assoc()): ?>
                         <tr>
@@ -562,7 +529,7 @@ function cerrarSemanaModal() {
     document.getElementById('semanaModal').style.display = 'none';
 }
 
-// ==================== DETALLE DE VIAJE INDIVIDUAL ====================
+// ==================== VER DETALLE ====================
 function verDetalle(id) {
     const modal = document.getElementById('detalleModal');
     const body = document.getElementById('modalBody');
@@ -646,6 +613,25 @@ function cerrarModal() {
     document.getElementById('detalleModal').style.display = 'none';
 }
 
+// ==================== ELIMINAR VIAJE ====================
+function eliminarViaje(id) {
+    if (!confirm('¿Estás seguro de eliminar este viaje? Se eliminarán también todas las fotos asociadas.')) {
+        return;
+    }
+    fetch('eliminar_viaje.php?id=' + id)
+        .then(response => response.json())
+        .then(data => {
+            alert(data.mensaje);
+            if (data.success) {
+                location.reload(); // recargar la página para actualizar la tabla
+            }
+        })
+        .catch(error => {
+            alert('Error al eliminar: ' + error);
+        });
+}
+
+// ==================== EDICIÓN DE CATÁLOGOS ====================
 function editarPlaca(id, actual) {
     let nueva = prompt("Editar placa:", actual);
     if (nueva && nueva !== actual) {
@@ -668,7 +654,7 @@ function editarNoEconomico(id, actual) {
     }
 }
 
-// ==================== DETALLE SEMANA CON KILOMETRAJE (CORREGIDO) ====================
+// ==================== DETALLE SEMANA ====================
 document.getElementById('btnDetalleSemana')?.addEventListener('click', function() {
     const semanaSelect = document.getElementById('semanaSelect');
     const semanaValor = semanaSelect.value;
@@ -701,7 +687,6 @@ document.getElementById('btnDetalleSemana')?.addEventListener('click', function(
                 html += '<th>Km Inicial</th><th>Km Final</th><th>Km Total</th><th>Total Gastos</th>';
                 html += '</tr></thead><tbody>';
                 
-                // Recorrer cada viaje y crear una fila por cada uno
                 data.viajes.forEach(v => {
                     html += `<tr>
                         <td style="white-space:nowrap;">${v.id}</td>
