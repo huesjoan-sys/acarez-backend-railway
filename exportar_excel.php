@@ -1,8 +1,14 @@
 <?php
-header('Content-Type: application/vnd.ms-excel');
-header('Content-Disposition: attachment; filename="reportes_acarez.xls"');
+// Limpiar cualquier salida previa (espacios, BOM, etc.)
+ob_clean();
 
-$conn = new mysqli('localhost', 'root', '', 'acarez_logistica');
+// Configurar cabeceras para Excel
+header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+header('Content-Disposition: attachment; filename="reportes_acarez.xls"');
+header('Cache-Control: max-age=0');
+
+// Usar la conexión centralizada (compatible con Render/Railway)
+require_once 'conexion.php';
 
 // Obtener filtros
 $semana = $_GET['semana'] ?? '';
@@ -27,28 +33,41 @@ if (!$todo) {
 $sql = "SELECT * FROM viajes $where ORDER BY id DESC";
 $result = $conn->query($sql);
 
-// Encabezados Excel (FECHA y HORA separados)
+if (!$result) {
+    die("Error en la consulta: " . $conn->error);
+}
+
+// Encabezados del Excel (con separadores TAB)
 echo "ID\tFECHA\tHORA\tChofer\tPlacas\tOrigen Ida\tDestino Ida\tOrigen Regreso\tDestino Regreso\tDirección\t";
 echo "Total Ida\tTotal Regreso\tTotal General\t";
 echo "Hotel Ida\tHotel Regreso\tCaseta Ida\tCaseta Regreso\t";
 echo "Comida Ida\tComida Regreso\tEstacionamiento Ida\tEstacionamiento Regreso\n";
 
-while($row = $result->fetch_assoc()) {
+while ($row = $result->fetch_assoc()) {
     // Separar fecha y hora
     $fecha_completa = $row['fecha'];
     $fecha = date('d/m/Y', strtotime($fecha_completa));
     $hora = date('H:i:s', strtotime($fecha_completa));
     
+    // Escapar caracteres que puedan romper el formato (opcional)
+    $chofer = str_replace(["\t", "\n", "\r"], " ", $row['chofer']);
+    $placas = str_replace(["\t", "\n", "\r"], " ", $row['placas']);
+    $origen_ida = str_replace(["\t", "\n", "\r"], " ", $row['origen_ida']);
+    $destino_ida = str_replace(["\t", "\n", "\r"], " ", $row['destino_ida']);
+    $origen_regreso = str_replace(["\t", "\n", "\r"], " ", $row['origen_regreso']);
+    $destino_regreso = str_replace(["\t", "\n", "\r"], " ", $row['destino_regreso']);
+    $direccion = str_replace(["\t", "\n", "\r"], " ", $row['direccion_actual']);
+
     echo $row['id'] . "\t";
     echo $fecha . "\t";
     echo $hora . "\t";
-    echo $row['chofer'] . "\t";
-    echo $row['placas'] . "\t";
-    echo $row['origen_ida'] . "\t";
-    echo $row['destino_ida'] . "\t";
-    echo $row['origen_regreso'] . "\t";
-    echo $row['destino_regreso'] . "\t";
-    echo $row['direccion_actual'] . "\t";
+    echo $chofer . "\t";
+    echo $placas . "\t";
+    echo $origen_ida . "\t";
+    echo $destino_ida . "\t";
+    echo $origen_regreso . "\t";
+    echo $destino_regreso . "\t";
+    echo $direccion . "\t";
     echo $row['total_ida'] . "\t";
     echo $row['total_regreso'] . "\t";
     echo $row['total_general'] . "\t";
@@ -61,4 +80,7 @@ while($row = $result->fetch_assoc()) {
     echo $row['gasto_estac_ida'] . "\t";
     echo $row['gasto_estac_reg'] . "\n";
 }
+
+$conn->close();
+exit;
 ?>
