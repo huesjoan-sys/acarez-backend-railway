@@ -4,7 +4,6 @@ require_once 'vendor/autoload.php';
 require_once 'conexion.php';
 
 use Dompdf\Dompdf;
-use Dompdf\Options;
 
 // Obtener filtros (igual que en exportar_excel.php)
 $semana = $_GET['semana'] ?? '';
@@ -77,6 +76,8 @@ $html = '<!DOCTYPE html>
 
 // Mostrar filtros aplicados
 if (!empty($semana)) {
+    $week = substr($semana, 6);
+    $year = substr($semana, 0, 4);
     $html .= '<div class="filtro"><strong>Filtro:</strong> Semana ' . $week . ' del ' . $year . ' (' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . ')</div>';
 } elseif (!empty($fecha_inicio) && !empty($fecha_fin)) {
     $html .= '<div class="filtro"><strong>Filtro:</strong> Del ' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . '</div>';
@@ -163,16 +164,15 @@ $html .= '
 </html>';
 
 // ========== GENERAR PDF ==========
-$options = new Options();
-$options->set('defaultFont', 'helvetica');
-$options->set('isRemoteEnabled', true); // para imágenes externas (logo)
-
-$dompdf = new Dompdf($options);
+// Configurar opciones directamente en el objeto Dompdf (compatible con v0.6.2)
+$dompdf = new Dompdf();
+$dompdf->set_option('defaultFont', 'helvetica');
+$dompdf->set_option('isRemoteEnabled', true); // para imágenes externas (logo)
 $dompdf->loadHtml($html);
 $dompdf->setPaper('A4', 'portrait');
 $dompdf->render();
 
-// Salida al navegador
-$dompdf->stream("reporte_viajes_" . date('Ymd_His') . ".pdf", array("Attachment" => 0));
+// Salida al navegador (Attachment = 0 para mostrar en navegador, o 1 para descargar)
+$dompdf->stream("reporte_viajes_" . date('Ymd_His') . ".pdf", array("Attachment" => 1));
 exit;
 ?>
