@@ -207,6 +207,7 @@ function manejarCatalogos($conn) {
         }
         .btn-primary { background: #4A148C; color: white; }
         .btn-success { background: #6A1B9A; color: white; }
+        .btn-info { background: #17a2b8; color: white; }
         .btn-warning { background: #ffc107; color: #222; }
         .btn-danger { background: #dc3545; color: white; }
         .form-inline { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
@@ -341,6 +342,8 @@ function manejarCatalogos($conn) {
                 <button type="submit" class="btn btn-primary">Filtrar</button>
                 <a href="?seccion=reportes" class="btn btn-primary">Limpiar</a>
                 <button type="button" class="btn btn-success" onclick="exportarExcel()">Exportar Excel</button>
+                <!-- NUEVO BOTÓN PARA CSV -->
+                <button type="button" class="btn btn-info" onclick="exportarCSV()">📱 Exportar CSV (Celular)</button>
                 <button type="button" class="btn btn-success" id="btnDetalleSemana" style="background:#17a2b8; color:white;">📋 Detalle Semana</button>
             </form>
         </div>
@@ -358,8 +361,8 @@ function manejarCatalogos($conn) {
                                 <th>Chofer</th>
                                 <th>Placas</th>
                                 <th>No. Eco</th>
-                                <th>Km Inicial</th>   <!-- NUEVA COLUMNA -->
-                                <th>Km Final</th>     <!-- NUEVA COLUMNA -->
+                                <th>Km Inicial</th>
+                                <th>Km Final</th>
                                 <th>Km Recorrido</th>
                                 <th>Total Gastos</th>
                                 <th>Acciones</th>
@@ -512,6 +515,12 @@ document.addEventListener('DOMContentLoaded', () => girarLogoInferior());
 function exportarExcel() {
     let params = new URLSearchParams(window.location.search);
     window.location.href = 'exportar_excel.php?' + params.toString();
+}
+
+// NUEVA FUNCIÓN PARA EXPORTAR CSV
+function exportarCSV() {
+    let params = new URLSearchParams(window.location.search);
+    window.location.href = 'exportar_csv.php?' + params.toString();
 }
 
 function verImagenGrande(src) {
