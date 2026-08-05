@@ -9,6 +9,9 @@ RUN a2enmod rewrite
 # Copiar todo el código
 COPY . /var/www/html/
 
+# Asignar permisos a todo el directorio web (¡NUEVA LÍNEA!)
+RUN chown -R www-data:www-data /var/www/html && chmod -R 755 /var/www/html
+
 # Crear directorios de uploads y asignar permisos
 RUN mkdir -p /var/www/html/uploads/km_inicio \
     && mkdir -p /var/www/html/uploads/km_fin \
