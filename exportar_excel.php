@@ -1,13 +1,10 @@
 <?php
-// Iniciar buffer de salida para controlar cualquier salida no deseada
 ob_start();
 
-// Configurar cabeceras para Excel (HTML)
 header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
 header('Content-Disposition: attachment; filename="reportes_acarez.xls"');
 header('Cache-Control: max-age=0');
 
-// Incluir la conexión a la base de datos
 require_once 'conexion.php';
 
 // Obtener filtros
@@ -16,7 +13,6 @@ $fecha_inicio = $_GET['fecha_inicio'] ?? '';
 $fecha_fin = $_GET['fecha_fin'] ?? '';
 $todo = isset($_GET['todo']);
 
-// Construir consulta con filtros
 $where = "";
 if (!$todo) {
     if (!empty($semana)) {
@@ -34,12 +30,9 @@ $sql = "SELECT * FROM viajes $where ORDER BY id DESC";
 $result = $conn->query($sql);
 
 if (!$result) {
-    // Si hay error, mostrar mensaje simple y salir
     echo "Error en la consulta: " . $conn->error;
     exit;
 }
-
-// ========== GENERAR HTML CON FORMATO ==========
 ?>
 <!DOCTYPE html>
 <html>
@@ -47,17 +40,30 @@ if (!$result) {
     <meta charset="UTF-8">
     <title>Reporte ACAREZ</title>
     <style>
+        /* Estilos generales (Excel también los respeta en parte) */
         body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; }
-        h1 { color: #4A148C; font-size: 18px; margin-bottom: 5px; }
+        h1 { color: #4A148C; font-size: 18px; }
         .fecha { font-size: 12px; color: #666; margin-bottom: 15px; }
         table { border-collapse: collapse; width: 100%; }
-        th { background-color: #4A148C; color: white; font-weight: bold; padding: 8px 6px; border: 1px solid #3C096C; text-align: center; }
-        td { padding: 6px 4px; border: 1px solid #ddd; text-align: left; }
+        th {
+            background-color: #4A148C;
+            color: #FFFFFF;
+            font-weight: bold;
+            padding: 8px 6px;
+            border: 1px solid #3C096C;
+            text-align: center;
+        }
+        td {
+            padding: 6px 4px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
         .numero { text-align: right; }
         .moneda { text-align: right; font-weight: 500; }
         .total-general { font-weight: bold; color: #4A148C; }
         .fila-alternativa { background-color: #f9f9f9; }
         .id-col { text-align: center; }
+        .km-col { text-align: center; }
     </style>
 </head>
 <body>
@@ -66,27 +72,32 @@ if (!$result) {
     <table>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>FECHA</th>
-                <th>HORA</th>
-                <th>CHOFER</th>
-                <th>PLACAS</th>
-                <th>ORIGEN IDA</th>
-                <th>DESTINO IDA</th>
-                <th>ORIGEN REGRESO</th>
-                <th>DESTINO REGRESO</th>
-                <th>DIRECCIÓN</th>
-                <th class="numero">TOTAL IDA</th>
-                <th class="numero">TOTAL REGRESO</th>
-                <th class="numero">TOTAL GENERAL</th>
-                <th class="numero">HOTEL IDA</th>
-                <th class="numero">HOTEL REG</th>
-                <th class="numero">CASETA IDA</th>
-                <th class="numero">CASETA REG</th>
-                <th class="numero">COMIDA IDA</th>
-                <th class="numero">COMIDA REG</th>
-                <th class="numero">ESTAC. IDA</th>
-                <th class="numero">ESTAC. REG</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">ID</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">FECHA</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">HORA</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">CHOFER</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">PLACAS</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">ORIGEN IDA</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">DESTINO IDA</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">ORIGEN REGRESO</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">DESTINO REGRESO</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C;">DIRECCIÓN</th>
+                <!-- NUEVAS COLUMNAS DE KILOMETRAJE -->
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:center;">KM INICIAL</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:center;">KM FINAL</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:center;">KM TOTAL</th>
+                <!-- FIN NUEVAS COLUMNAS -->
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">TOTAL IDA</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">TOTAL REGRESO</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">TOTAL GENERAL</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">HOTEL IDA</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">HOTEL REG</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">CASETA IDA</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">CASETA REG</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">COMIDA IDA</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">COMIDA REG</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">ESTAC. IDA</th>
+                <th style="background-color:#4A148C; color:#FFFFFF; font-weight:bold; border:1px solid #3C096C; text-align:right;">ESTAC. REG</th>
             </tr>
         </thead>
         <tbody>
@@ -95,9 +106,8 @@ $cont = 0;
 while ($row = $result->fetch_assoc()) {
     $cont++;
     $clase = ($cont % 2 == 0) ? 'fila-alternativa' : '';
-    $fecha_completa = $row['fecha'];
-    $fecha = date('d/m/Y', strtotime($fecha_completa));
-    $hora = date('H:i:s', strtotime($fecha_completa));
+    $fecha = date('d/m/Y', strtotime($row['fecha']));
+    $hora = date('H:i:s', strtotime($row['fecha']));
     
     $chofer = htmlspecialchars($row['chofer'] ?? '');
     $placas = htmlspecialchars($row['placas'] ?? '');
@@ -106,9 +116,14 @@ while ($row = $result->fetch_assoc()) {
     $origen_regreso = htmlspecialchars($row['origen_regreso'] ?? '');
     $destino_regreso = htmlspecialchars($row['destino_regreso'] ?? '');
     $direccion = htmlspecialchars($row['direccion_actual'] ?? '');
+    
+    // Kilometraje
+    $km_inicial = $row['km_inicial'] ?? 0;
+    $km_final = $row['km_final'] ?? 0;
+    $km_total = $row['km_total'] ?? 0;
 ?>
             <tr class="<?= $clase ?>">
-                <td class="id-col"><?= $row['id'] ?></td>
+                <td style="text-align:center;"><?= $row['id'] ?></td>
                 <td><?= $fecha ?></td>
                 <td><?= $hora ?></td>
                 <td><?= $chofer ?></td>
@@ -118,17 +133,22 @@ while ($row = $result->fetch_assoc()) {
                 <td><?= $origen_regreso ?></td>
                 <td><?= $destino_regreso ?></td>
                 <td><?= $direccion ?></td>
-                <td class="moneda">$<?= number_format($row['total_ida'] ?? 0, 2) ?></td>
-                <td class="moneda">$<?= number_format($row['total_regreso'] ?? 0, 2) ?></td>
-                <td class="moneda total-general">$<?= number_format($row['total_general'] ?? 0, 2) ?></td>
-                <td class="moneda">$<?= number_format($row['gasto_hotel_ida'] ?? 0, 2) ?></td>
-                <td class="moneda">$<?= number_format($row['gasto_hotel_reg'] ?? 0, 2) ?></td>
-                <td class="moneda">$<?= number_format($row['gasto_caseta_ida'] ?? 0, 2) ?></td>
-                <td class="moneda">$<?= number_format($row['gasto_caseta_reg'] ?? 0, 2) ?></td>
-                <td class="moneda">$<?= number_format($row['gasto_comida_ida'] ?? 0, 2) ?></td>
-                <td class="moneda">$<?= number_format($row['gasto_comida_reg'] ?? 0, 2) ?></td>
-                <td class="moneda">$<?= number_format($row['gasto_estac_ida'] ?? 0, 2) ?></td>
-                <td class="moneda">$<?= number_format($row['gasto_estac_reg'] ?? 0, 2) ?></td>
+                <!-- KILOMETRAJE -->
+                <td style="text-align:center;"><?= number_format($km_inicial, 0) ?></td>
+                <td style="text-align:center;"><?= number_format($km_final, 0) ?></td>
+                <td style="text-align:center; font-weight:bold;"><?= number_format($km_total, 0) ?></td>
+                <!-- FIN KILOMETRAJE -->
+                <td style="text-align:right;">$<?= number_format($row['total_ida'] ?? 0, 2) ?></td>
+                <td style="text-align:right;">$<?= number_format($row['total_regreso'] ?? 0, 2) ?></td>
+                <td style="text-align:right; font-weight:bold; color:#4A148C;">$<?= number_format($row['total_general'] ?? 0, 2) ?></td>
+                <td style="text-align:right;">$<?= number_format($row['gasto_hotel_ida'] ?? 0, 2) ?></td>
+                <td style="text-align:right;">$<?= number_format($row['gasto_hotel_reg'] ?? 0, 2) ?></td>
+                <td style="text-align:right;">$<?= number_format($row['gasto_caseta_ida'] ?? 0, 2) ?></td>
+                <td style="text-align:right;">$<?= number_format($row['gasto_caseta_reg'] ?? 0, 2) ?></td>
+                <td style="text-align:right;">$<?= number_format($row['gasto_comida_ida'] ?? 0, 2) ?></td>
+                <td style="text-align:right;">$<?= number_format($row['gasto_comida_reg'] ?? 0, 2) ?></td>
+                <td style="text-align:right;">$<?= number_format($row['gasto_estac_ida'] ?? 0, 2) ?></td>
+                <td style="text-align:right;">$<?= number_format($row['gasto_estac_reg'] ?? 0, 2) ?></td>
             </tr>
 <?php } ?>
         </tbody>
@@ -137,7 +157,6 @@ while ($row = $result->fetch_assoc()) {
 </html>
 <?php
 $conn->close();
-// Vaciar buffer y enviar salida
 ob_end_flush();
 exit;
 ?>
