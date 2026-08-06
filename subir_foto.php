@@ -1,17 +1,14 @@
 <?php
-// Manejar solicitud OPTIONS (preflight CORS)
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
-    http_response_code(200);
-    exit;
-}
-
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+
+// Manejar preflight CORS (OPTIONS)
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 $carpetas = [
     'inicio' => 'km_inicio/',
@@ -43,7 +40,9 @@ if ($_FILES['foto']['error'] === UPLOAD_ERR_OK) {
     $ruta_completa = $carpeta_destino . $nombre_archivo;
     
     if (move_uploaded_file($_FILES['foto']['tmp_name'], $ruta_completa)) {
-        echo json_encode(['success' => true, 'ruta' => $ruta_completa]);
+        // ========== CORRECCIÓN: GUARDAR RUTA RELATIVA ==========
+        $ruta_relativa = 'uploads/' . $subcarpeta . $nombre_archivo;
+        echo json_encode(['success' => true, 'ruta' => $ruta_relativa]);
     } else {
         echo json_encode(['success' => false, 'error' => 'No se pudo mover']);
     }

@@ -21,6 +21,29 @@ if ($result->num_rows == 0) {
 
 $row = $result->fetch_assoc();
 
+// ========== CORRECCIÓN: CONVERTIR RUTAS ABSOLUTAS A RELATIVAS (si existen) ==========
+$campos_fotos = [
+    'foto_inicio', 'foto_fin',
+    'foto_hotel_ida', 'foto_hotel_regreso',
+    'foto_caseta_ida', 'foto_caseta_regreso',
+    'foto_comida_ida', 'foto_comida_regreso',
+    'foto_estac_ida', 'foto_estac_regreso',
+    'foto_gasolina_ida', 'foto_gasolina_regreso'
+];
+foreach ($campos_fotos as $campo) {
+    if (!empty($row[$campo])) {
+        // Si empieza con /var/www/html/ (ruta absoluta del servidor), la convertimos a relativa
+        if (strpos($row[$campo], '/var/www/html/') === 0) {
+            $row[$campo] = str_replace('/var/www/html/', '', $row[$campo]);
+        }
+        // Si empieza con / (raíz del sistema), la convertimos a relativa
+        if (strpos($row[$campo], '/') === 0 && strpos($row[$campo], '/var/www/html/') === false) {
+            // Quitamos la primera barra para hacerla relativa
+            $row[$campo] = ltrim($row[$campo], '/');
+        }
+    }
+}
+
 // Asegurar que todos los campos existen
 $datos = [
     'id' => $row['id'],
@@ -38,11 +61,9 @@ $datos = [
     'fecha' => $row['fecha'] ?? '',
     'foto_inicio' => $row['foto_inicio'] ?? '',
     'foto_fin' => $row['foto_fin'] ?? '',
-    // ========== KILOMETRAJE (NUEVOS CAMPOS) ==========
     'km_inicial' => $row['km_inicial'] ?? 0,
     'km_final' => $row['km_final'] ?? 0,
     'km_total' => $row['km_total'] ?? 0,
-    // =================================================
     'gasto_hotel_ida' => $row['gasto_hotel_ida'] ?? 0,
     'gasto_hotel_reg' => $row['gasto_hotel_reg'] ?? 0,
     'gasto_caseta_ida' => $row['gasto_caseta_ida'] ?? 0,
@@ -51,12 +72,10 @@ $datos = [
     'gasto_comida_reg' => $row['gasto_comida_reg'] ?? 0,
     'gasto_estac_ida' => $row['gasto_estac_ida'] ?? 0,
     'gasto_estac_reg' => $row['gasto_estac_reg'] ?? 0,
-    // ========== NUEVOS CAMPOS DE GASOLINA ==========
     'gasto_gasolina_ida' => $row['gasto_gasolina_ida'] ?? 0,
     'gasto_gasolina_reg' => $row['gasto_gasolina_reg'] ?? 0,
     'foto_gasolina_ida' => $row['foto_gasolina_ida'] ?? '',
     'foto_gasolina_regreso' => $row['foto_gasolina_regreso'] ?? '',
-    // ================================================
     'foto_hotel_ida' => $row['foto_hotel_ida'] ?? '',
     'foto_hotel_regreso' => $row['foto_hotel_regreso'] ?? '',
     'foto_caseta_ida' => $row['foto_caseta_ida'] ?? '',
