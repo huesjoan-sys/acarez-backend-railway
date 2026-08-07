@@ -1,9 +1,8 @@
 <?php
 // ============================================
-// exportar_pdf_tcpdf.php - Reporte PDF con TCPDF
+// exportar_pdf_tcpdf.php - Reporte PDF (Landscape)
 // ============================================
 
-// Cargar TCPDF (ya está instalado en la carpeta tcpdf/)
 require_once __DIR__ . '/tcpdf/tcpdf.php';
 require_once __DIR__ . '/conexion.php';
 
@@ -44,11 +43,11 @@ $total_estac = 0;
 $total_gasolina = 0;
 
 // ========== CONSTRUIR HTML ==========
-$html = '<h1 style="text-align:center; color:#4A148C;">🚚 ACAREZ LOGÍSTICA</h1>
+$html = '<h1 style="text-align:center; color:#4A148C;">ACAREZ LOGISTICA</h1>
 <h2 style="text-align:center; font-size:14px;">Reporte de Viajes</h2>
 <p style="text-align:center; font-size:12px; color:#666;">Generado: ' . date('d/m/Y H:i:s') . '</p>';
 
-// Filtros aplicados
+// Filtros
 if (!empty($semana)) {
     $week = substr($semana, 6);
     $year = substr($semana, 0, 4);
@@ -59,8 +58,8 @@ if (!empty($semana)) {
     $html .= '<p><strong>Filtro:</strong> Todos los viajes</p>';
 }
 
-// Tabla de viajes
-$html .= '<table border="1" cellpadding="4" style="font-size:10px; border-collapse:collapse; width:100%;">
+// Tabla (con más columnas, usamos landscape)
+$html .= '<table border="1" cellpadding="4" style="font-size:9px; border-collapse:collapse; width:100%;">
 <thead>
     <tr style="background-color:#4A148C; color:#FFFFFF; font-weight:bold;">
         <th>ID</th>
@@ -113,13 +112,13 @@ while ($row = $result->fetch_assoc()) {
 
 $html .= '</tbody></table>';
 
-// Resumen del período
-$html .= '<h3 style="text-align:center; color:#4A148C; margin-top:15px;">📊 Resumen del Período</h3>
+// Resumen (sin emojis)
+$html .= '<h3 style="text-align:center; color:#4A148C; margin-top:15px;">Resumen del Periodo</h3>
 <table border="0" cellpadding="5" style="margin:0 auto; font-size:12px;">
     <tr><td style="font-weight:bold;">Total de viajes:</td><td>' . $total_viajes . '</td></tr>
     <tr><td style="font-weight:bold;">Total Km recorridos:</td><td>' . number_format($total_km, 0, '.', '') . ' km</td></tr>
     <tr><td style="font-weight:bold;">Total gastos generales:</td><td>$' . number_format($total_gastos, 2) . '</td></tr>
-    <tr><td style="font-weight:bold;">Gastos por categoría:</td><td></td></tr>
+    <tr><td style="font-weight:bold;">Gastos por categoria:</td><td></td></tr>
     <tr><td style="padding-left:20px;">Hotel:</td><td>$' . number_format($total_hotel, 2) . '</td></tr>
     <tr><td style="padding-left:20px;">Caseta:</td><td>$' . number_format($total_caseta, 2) . '</td></tr>
     <tr><td style="padding-left:20px;">Comida:</td><td>$' . number_format($total_comida, 2) . '</td></tr>
@@ -129,20 +128,52 @@ $html .= '<h3 style="text-align:center; color:#4A148C; margin-top:15px;">📊 Re
 
 // Pie de página
 $html .= '<p style="text-align:center; font-size:10px; color:#999; margin-top:20px; border-top:1px solid #ddd; padding-top:10px;">
-    Reporte generado automáticamente por ACAREZ. © ' . date('Y') . ' - Todos los derechos reservados.
+    Reporte generado automaticamente por ACAREZ. (c) ' . date('Y') . ' - Todos los derechos reservados.
 </p>';
 
-// ========== CREAR EL PDF CON TCPDF ==========
-$pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
-$pdf->SetCreator('ACAREZ');
-$pdf->SetAuthor('ACAREZ');
-$pdf->SetTitle('Reporte de Viajes');
-$pdf->SetSubject('Reporte de Viajes ACAREZ');
+// ========== CREAR PDF CON TCPDF (LANDSCAPE Y LOGO) ==========
+
+// Crear PDF en orientación Landscape (L) y tamaño A4
+$pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+
+// Eliminar cabeceras y pies de página por defecto
+$pdf->setPrintHeader(false);
+$pdf->setPrintFooter(false);
+
+// Configurar márgenes
 $pdf->SetMargins(10, 10, 10);
 $pdf->SetAutoPageBreak(true, 10);
+
+// Agregar página
 $pdf->AddPage();
+
+// ========== AGREGAR LOGO EN EL ENCABEZADO ==========
+// Ruta del logo (relativa al script)
+$logoPath = __DIR__ . '/imagenes/acarez_3.png';
+if (file_exists($logoPath)) {
+    // Colocar logo en la esquina superior izquierda (x=10, y=10, ancho=30, alto=30)
+    $pdf->Image($logoPath, 10, 10, 30, 30, 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+}
+
+// Título personalizado (sin logo en HTML, ya lo pusimos con Image)
+$pdf->SetFont('helvetica', 'B', 20);
+$pdf->SetXY(45, 15); // Posición desplazada a la derecha para no pisar el logo
+$pdf->Cell(0, 10, 'ACAREZ LOGISTICA', 0, 1, 'L');
+
+$pdf->SetFont('helvetica', '', 12);
+$pdf->SetXY(45, 25);
+$pdf->Cell(0, 10, 'Reporte de Viajes', 0, 1, 'L');
+
+$pdf->SetFont('helvetica', 'I', 10);
+$pdf->SetXY(45, 33);
+$pdf->Cell(0, 10, 'Generado: ' . date('d/m/Y H:i:s'), 0, 1, 'L');
+
+// ========== AGREGAR EL CONTENIDO HTML (TABLA Y RESUMEN) ==========
+$pdf->SetY(45); // Dejar espacio para el encabezado con logo
 $pdf->SetFont('helvetica', '', 10);
 $pdf->writeHTML($html, true, false, true, false, '');
+
+// ========== SALIDA ==========
 $pdf->Output('reporte_viajes_' . date('Ymd_His') . '.pdf', 'D');
 exit;
 ?>
