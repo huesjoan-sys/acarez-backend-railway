@@ -3,6 +3,10 @@
 // exportar_pdf_tcpdf.php - Reporte PDF (Landscape)
 // ============================================
 
+//====ESTABLECER ZONA HORARIA DE MÉXICO==========
+
+date_default_timezone_set('America/Mexico_City');
+
 require_once __DIR__ . '/tcpdf/tcpdf.php';
 require_once __DIR__ . '/conexion.php';
 
@@ -73,7 +77,7 @@ $html .= '<table border="1" cellpadding="3" style="font-size:8px; border-collaps
         <th style="text-align:center;">Km Ini</th>
         <th style="text-align:center;">Km Fin</th>
         <th style="text-align:center;">Km Total</th>
-        <th style="text-align:center;">Total $</th>
+        <th style="text-align:center;">Total de Gastos</th>
     </tr>
 </thead>
 <tbody>';
