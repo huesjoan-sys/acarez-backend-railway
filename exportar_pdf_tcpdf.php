@@ -42,8 +42,8 @@ $total_comida = 0;
 $total_estac = 0;
 $total_gasolina = 0;
 
-// ========== CONSTRUIR HTML (tabla y resumen) ==========
-$html = '<h1 style="text-align:center; color:#4A148C; font-size:16px;">ACAREZ LOGISTICA</h1>
+// ========== CONSTRUIR HTML (con título centrado) ==========
+$html = '<h1 style="text-align:center; color:#4A148C; font-size:16px; margin-top:0;">ACAREZ LOGISTICA</h1>
 <h2 style="text-align:center; font-size:13px; margin-top:-5px;">Reporte de Viajes</h2>
 <p style="text-align:center; font-size:11px; color:#666; margin-top:-10px;">Generado: ' . date('d/m/Y H:i:s') . '</p>';
 
@@ -51,14 +51,14 @@ $html = '<h1 style="text-align:center; color:#4A148C; font-size:16px;">ACAREZ LO
 if (!empty($semana)) {
     $week = substr($semana, 6);
     $year = substr($semana, 0, 4);
-    $html .= '<p style="font-size:10px;"><strong>Filtro:</strong> Semana ' . $week . ' del ' . $year . ' (' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . ')</p>';
+    $html .= '<p style="font-size:10px; text-align:center;"><strong>Filtro:</strong> Semana ' . $week . ' del ' . $year . ' (' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . ')</p>';
 } elseif (!empty($fecha_inicio) && !empty($fecha_fin)) {
-    $html .= '<p style="font-size:10px;"><strong>Filtro:</strong> Del ' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . '</p>';
+    $html .= '<p style="font-size:10px; text-align:center;"><strong>Filtro:</strong> Del ' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . '</p>';
 } else {
-    $html .= '<p style="font-size:10px;"><strong>Filtro:</strong> Todos los viajes</p>';
+    $html .= '<p style="font-size:10px; text-align:center;"><strong>Filtro:</strong> Todos los viajes</p>';
 }
 
-// Tabla (fuente más pequeña para que quepa todo)
+// ========== TABLA (fuente más pequeña para que quepa todo) ==========
 $html .= '<table border="1" cellpadding="3" style="font-size:8px; border-collapse:collapse; width:100%;">
 <thead>
     <tr style="background-color:#4A148C; color:#FFFFFF; font-weight:bold;">
@@ -112,7 +112,7 @@ while ($row = $result->fetch_assoc()) {
 
 $html .= '</tbody></table>';
 
-// Resumen
+// ========== RESUMEN (sin emojis) ==========
 $html .= '<h3 style="text-align:center; color:#4A148C; font-size:12px; margin-top:10px;">Resumen del Periodo</h3>
 <table border="0" cellpadding="3" style="margin:0 auto; font-size:10px;">
     <tr><td style="font-weight:bold;">Total de viajes:</td><td>' . $total_viajes . '</td></tr>
@@ -139,36 +139,25 @@ $pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
 $pdf->setPrintHeader(false);
 $pdf->setPrintFooter(false);
 
-// Reducir márgenes para aprovechar el espacio
-$pdf->SetMargins(8, 8, 8);  // márgenes izquierdo, superior, derecho
-$pdf->SetAutoPageBreak(true, 8); // margen inferior
+// Márgenes reducidos
+$pdf->SetMargins(8, 8, 8);
+$pdf->SetAutoPageBreak(true, 8);
 
 $pdf->AddPage();
 
-// ========== AGREGAR LOGO CON RELACIÓN DE ASPECTO ==========
+// ========== AGREGAR LOGO (pequeño, con relación de aspecto) ==========
 $logoPath = __DIR__ . '/imagenes/acarez_3.png';
 if (file_exists($logoPath)) {
-    // Mantener relación de aspecto: especificamos solo el alto (25 mm)
-    // y el ancho se calculará automáticamente para no deformar la imagen
-    $pdf->Image($logoPath, 8, 8, 0, 25, 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+    // Alto de 18 mm, ancho automático para mantener proporción
+    $pdf->Image($logoPath, 8, 8, 0, 18, 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
 }
 
-// ========== TÍTULO Y FECHA (con offset para no pisar el logo) ==========
-$pdf->SetFont('helvetica', 'B', 16);
-$pdf->SetXY(40, 10); // Desplazado a la derecha para dejar espacio al logo
-$pdf->Cell(0, 10, 'ACAREZ LOGISTICA', 0, 1, 'L');
+// ========== ELIMINADO EL TÍTULO DUPLICADO ==========
+// Ya no usamos SetFont ni Cell para el título, solo el HTML centrado.
 
-$pdf->SetFont('helvetica', '', 11);
-$pdf->SetXY(40, 20);
-$pdf->Cell(0, 8, 'Reporte de Viajes', 0, 1, 'L');
-
-$pdf->SetFont('helvetica', 'I', 9);
-$pdf->SetXY(40, 27);
-$pdf->Cell(0, 8, 'Generado: ' . date('d/m/Y H:i:s'), 0, 1, 'L');
-
-// ========== AGREGAR EL CONTENIDO (TABLA Y RESUMEN) ==========
-// Colocar el HTML justo después del encabezado
-$pdf->SetY(38);
+// ========== AGREGAR EL CONTENIDO HTML (TABLA Y RESUMEN) ==========
+// Dejar espacio para el logo (alto 18 mm + margen)
+$pdf->SetY(30); // Ajustamos para que el HTML no se superponga al logo
 $pdf->SetFont('helvetica', '', 9);
 $pdf->writeHTML($html, true, false, true, false, '');
 
