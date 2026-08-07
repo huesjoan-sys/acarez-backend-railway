@@ -72,7 +72,7 @@ $html .= '<table border="1" cellpadding="3" style="font-size:8px; border-collaps
         <th style="text-align:center;">Destino Regreso</th>
         <th style="text-align:center;">Km Ini</th>
         <th style="text-align:center;">Km Fin</th>
-        <th style="text-align:center;">Km Rec</th>
+        <th style="text-align:center;">Km Total</th>
         <th style="text-align:center;">Total $</th>
     </tr>
 </thead>
