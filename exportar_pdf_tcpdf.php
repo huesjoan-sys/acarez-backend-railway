@@ -42,24 +42,24 @@ $total_comida = 0;
 $total_estac = 0;
 $total_gasolina = 0;
 
-// ========== CONSTRUIR HTML ==========
-$html = '<h1 style="text-align:center; color:#4A148C;">ACAREZ LOGISTICA</h1>
-<h2 style="text-align:center; font-size:14px;">Reporte de Viajes</h2>
-<p style="text-align:center; font-size:12px; color:#666;">Generado: ' . date('d/m/Y H:i:s') . '</p>';
+// ========== CONSTRUIR HTML (CON FUENTES MÁS PEQUEÑAS) ==========
+$html = '<h1 style="text-align:center; color:#4A148C; font-size:16px;">ACAREZ LOGISTICA</h1>
+<h2 style="text-align:center; font-size:12px;">Reporte de Viajes</h2>
+<p style="text-align:center; font-size:10px; color:#666;">Generado: ' . date('d/m/Y H:i:s') . '</p>';
 
 // Filtros
 if (!empty($semana)) {
     $week = substr($semana, 6);
     $year = substr($semana, 0, 4);
-    $html .= '<p><strong>Filtro:</strong> Semana ' . $week . ' del ' . $year . ' (' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . ')</p>';
+    $html .= '<p style="font-size:10px;"><strong>Filtro:</strong> Semana ' . $week . ' del ' . $year . ' (' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . ')</p>';
 } elseif (!empty($fecha_inicio) && !empty($fecha_fin)) {
-    $html .= '<p><strong>Filtro:</strong> Del ' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . '</p>';
+    $html .= '<p style="font-size:10px;"><strong>Filtro:</strong> Del ' . date('d/m/Y', strtotime($fecha_inicio)) . ' al ' . date('d/m/Y', strtotime($fecha_fin)) . '</p>';
 } else {
-    $html .= '<p><strong>Filtro:</strong> Todos los viajes</p>';
+    $html .= '<p style="font-size:10px;"><strong>Filtro:</strong> Todos los viajes</p>';
 }
 
-// Tabla (con más columnas, usamos landscape)
-$html .= '<table border="1" cellpadding="4" style="font-size:9px; border-collapse:collapse; width:100%;">
+// Tabla con fuente más pequeña (8px) y padding reducido
+$html .= '<table border="1" cellpadding="3" style="font-size:8px; border-collapse:collapse; width:100%;">
 <thead>
     <tr style="background-color:#4A148C; color:#FFFFFF; font-weight:bold;">
         <th>ID</th>
@@ -113,25 +113,25 @@ while ($row = $result->fetch_assoc()) {
 $html .= '</tbody></table>';
 
 // Resumen (sin emojis)
-$html .= '<h3 style="text-align:center; color:#4A148C; margin-top:15px;">Resumen del Periodo</h3>
-<table border="0" cellpadding="5" style="margin:0 auto; font-size:12px;">
+$html .= '<h3 style="text-align:center; color:#4A148C; margin-top:10px; font-size:12px;">Resumen del Periodo</h3>
+<table border="0" cellpadding="3" style="margin:0 auto; font-size:10px;">
     <tr><td style="font-weight:bold;">Total de viajes:</td><td>' . $total_viajes . '</td></tr>
     <tr><td style="font-weight:bold;">Total Km recorridos:</td><td>' . number_format($total_km, 0, '.', '') . ' km</td></tr>
     <tr><td style="font-weight:bold;">Total gastos generales:</td><td>$' . number_format($total_gastos, 2) . '</td></tr>
     <tr><td style="font-weight:bold;">Gastos por categoria:</td><td></td></tr>
-    <tr><td style="padding-left:20px;">Hotel:</td><td>$' . number_format($total_hotel, 2) . '</td></tr>
-    <tr><td style="padding-left:20px;">Caseta:</td><td>$' . number_format($total_caseta, 2) . '</td></tr>
-    <tr><td style="padding-left:20px;">Comida:</td><td>$' . number_format($total_comida, 2) . '</td></tr>
-    <tr><td style="padding-left:20px;">Estacionamiento:</td><td>$' . number_format($total_estac, 2) . '</td></tr>
-    <tr><td style="padding-left:20px; font-weight:bold; color:#4A148C;">Gasolina:</td><td style="font-weight:bold; color:#4A148C;">$' . number_format($total_gasolina, 2) . '</td></tr>
+    <tr><td style="padding-left:15px;">Hotel:</td><td>$' . number_format($total_hotel, 2) . '</td></tr>
+    <tr><td style="padding-left:15px;">Caseta:</td><td>$' . number_format($total_caseta, 2) . '</td></tr>
+    <tr><td style="padding-left:15px;">Comida:</td><td>$' . number_format($total_comida, 2) . '</td></tr>
+    <tr><td style="padding-left:15px;">Estacionamiento:</td><td>$' . number_format($total_estac, 2) . '</td></tr>
+    <tr><td style="padding-left:15px; font-weight:bold; color:#4A148C;">Gasolina:</td><td style="font-weight:bold; color:#4A148C;">$' . number_format($total_gasolina, 2) . '</td></tr>
 </table>';
 
 // Pie de página
-$html .= '<p style="text-align:center; font-size:10px; color:#999; margin-top:20px; border-top:1px solid #ddd; padding-top:10px;">
+$html .= '<p style="text-align:center; font-size:8px; color:#999; margin-top:15px; border-top:1px solid #ddd; padding-top:5px;">
     Reporte generado automaticamente por ACAREZ. (c) ' . date('Y') . ' - Todos los derechos reservados.
 </p>';
 
-// ========== CREAR PDF CON TCPDF (LANDSCAPE Y LOGO) ==========
+// ========== CREAR PDF CON TCPDF (LANDSCAPE, LOGO, MÁRGENES REDUCIDOS) ==========
 
 // Crear PDF en orientación Landscape (L) y tamaño A4
 $pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
@@ -140,37 +140,36 @@ $pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
 $pdf->setPrintHeader(false);
 $pdf->setPrintFooter(false);
 
-// Configurar márgenes
-$pdf->SetMargins(10, 10, 10);
-$pdf->SetAutoPageBreak(true, 10);
+// Configurar márgenes reducidos (superior 8, inferior 8, izquierdo 10, derecho 10)
+$pdf->SetMargins(10, 8, 10);
+$pdf->SetAutoPageBreak(true, 8);
 
 // Agregar página
 $pdf->AddPage();
 
-// ========== AGREGAR LOGO EN EL ENCABEZADO ==========
-// Ruta del logo (relativa al script)
+// ========== AGREGAR LOGO MÁS GRANDE Y ENCABEZADO ==========
+// Logo más grande (50x50)
 $logoPath = __DIR__ . '/imagenes/acarez_3.png';
 if (file_exists($logoPath)) {
-    // Colocar logo en la esquina superior izquierda (x=10, y=10, ancho=30, alto=30)
-    $pdf->Image($logoPath, 10, 10, 30, 30, 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+    $pdf->Image($logoPath, 10, 5, 45, 45, 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
 }
 
-// Título personalizado (sin logo en HTML, ya lo pusimos con Image)
-$pdf->SetFont('helvetica', 'B', 20);
-$pdf->SetXY(45, 15); // Posición desplazada a la derecha para no pisar el logo
-$pdf->Cell(0, 10, 'ACAREZ LOGISTICA', 0, 1, 'L');
+// Título principal al lado del logo (más grande)
+$pdf->SetFont('helvetica', 'B', 22);
+$pdf->SetXY(60, 10);
+$pdf->Cell(0, 12, 'ACAREZ LOGISTICA', 0, 1, 'L');
 
-$pdf->SetFont('helvetica', '', 12);
-$pdf->SetXY(45, 25);
+$pdf->SetFont('helvetica', '', 13);
+$pdf->SetXY(60, 22);
 $pdf->Cell(0, 10, 'Reporte de Viajes', 0, 1, 'L');
 
 $pdf->SetFont('helvetica', 'I', 10);
-$pdf->SetXY(45, 33);
+$pdf->SetXY(60, 31);
 $pdf->Cell(0, 10, 'Generado: ' . date('d/m/Y H:i:s'), 0, 1, 'L');
 
 // ========== AGREGAR EL CONTENIDO HTML (TABLA Y RESUMEN) ==========
-$pdf->SetY(45); // Dejar espacio para el encabezado con logo
-$pdf->SetFont('helvetica', '', 10);
+$pdf->SetY(42); // Ajustar posición después del encabezado
+$pdf->SetFont('helvetica', '', 9); // Fuente base para el contenido HTML
 $pdf->writeHTML($html, true, false, true, false, '');
 
 // ========== SALIDA ==========
