@@ -42,10 +42,9 @@ $total_comida = 0;
 $total_estac = 0;
 $total_gasolina = 0;
 
-// ========== CONSTRUIR HTML (con título centrado) ==========
-$html = '<h1 style="text-align:center; color:#4A148C; font-size:16px; margin-top:0;">ACAREZ LOGISTICA</h1>
-<h2 style="text-align:center; font-size:13px; margin-top:-5px;">Reporte de Viajes</h2>
-<p style="text-align:center; font-size:11px; color:#666; margin-top:-10px;">Generado: ' . date('d/m/Y H:i:s') . '</p>';
+// ========== CONSTRUIR HTML ==========
+$html = '<h1 style="text-align:center; color:#4A148C; font-size:22px; margin-top:0; margin-bottom:2px;">Reporte de Viajes</h1>
+<p style="text-align:center; font-size:11px; color:#666; margin-top:-5px;">Generado: ' . date('d/m/Y H:i:s') . '</p>';
 
 // Filtros
 if (!empty($semana)) {
@@ -58,23 +57,23 @@ if (!empty($semana)) {
     $html .= '<p style="font-size:10px; text-align:center;"><strong>Filtro:</strong> Todos los viajes</p>';
 }
 
-// ========== TABLA (fuente más pequeña para que quepa todo) ==========
+// ========== TABLA (encabezados centrados) ==========
 $html .= '<table border="1" cellpadding="3" style="font-size:8px; border-collapse:collapse; width:100%;">
 <thead>
     <tr style="background-color:#4A148C; color:#FFFFFF; font-weight:bold;">
-        <th>ID</th>
-        <th>Fecha</th>
-        <th>Hora</th>
-        <th>Chofer</th>
-        <th>Placas</th>
-        <th>Origen Ida</th>
-        <th>Destino Ida</th>
-        <th>Origen Regreso</th>
-        <th>Destino Regreso</th>
-        <th>Km Ini</th>
-        <th>Km Fin</th>
-        <th>Km Rec</th>
-        <th>Total $</th>
+        <th style="text-align:center;">ID</th>
+        <th style="text-align:center;">Fecha</th>
+        <th style="text-align:center;">Hora</th>
+        <th style="text-align:center;">Chofer</th>
+        <th style="text-align:center;">Placas</th>
+        <th style="text-align:center;">Origen Ida</th>
+        <th style="text-align:center;">Destino Ida</th>
+        <th style="text-align:center;">Origen Regreso</th>
+        <th style="text-align:center;">Destino Regreso</th>
+        <th style="text-align:center;">Km Ini</th>
+        <th style="text-align:center;">Km Fin</th>
+        <th style="text-align:center;">Km Rec</th>
+        <th style="text-align:center;">Total $</th>
     </tr>
 </thead>
 <tbody>';
@@ -95,8 +94,8 @@ while ($row = $result->fetch_assoc()) {
 
     $html .= '<tr>
         <td style="text-align:center;">' . $row['id'] . '</td>
-        <td>' . $fecha . '</td>
-        <td>' . $hora . '</td>
+        <td style="text-align:center;">' . $fecha . '</td>
+        <td style="text-align:center;">' . $hora . '</td>
         <td>' . htmlspecialchars($row['chofer']) . '</td>
         <td>' . htmlspecialchars($row['placas']) . '</td>
         <td>' . htmlspecialchars($row['origen_ida']) . '</td>
@@ -112,7 +111,7 @@ while ($row = $result->fetch_assoc()) {
 
 $html .= '</tbody></table>';
 
-// ========== RESUMEN (sin emojis) ==========
+// ========== RESUMEN ==========
 $html .= '<h3 style="text-align:center; color:#4A148C; font-size:12px; margin-top:10px;">Resumen del Periodo</h3>
 <table border="0" cellpadding="3" style="margin:0 auto; font-size:10px;">
     <tr><td style="font-weight:bold;">Total de viajes:</td><td>' . $total_viajes . '</td></tr>
@@ -132,32 +131,22 @@ $html .= '<p style="text-align:center; font-size:9px; color:#999; margin-top:15p
 
 // ========== GENERAR PDF ==========
 
-// Crear PDF en orientación Landscape (L), tamaño A4
 $pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
-
-// Eliminar cabeceras y pies de página por defecto
 $pdf->setPrintHeader(false);
 $pdf->setPrintFooter(false);
-
-// Márgenes reducidos
 $pdf->SetMargins(8, 8, 8);
 $pdf->SetAutoPageBreak(true, 8);
-
 $pdf->AddPage();
 
-// ========== AGREGAR LOGO (pequeño, con relación de aspecto) ==========
+// ========== LOGO (más pequeño, con relación de aspecto) ==========
 $logoPath = __DIR__ . '/imagenes/acarez_3.png';
 if (file_exists($logoPath)) {
-    // Alto de 18 mm, ancho automático para mantener proporción
-    $pdf->Image($logoPath, 8, 8, 0, 18, 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+    // Alto 14 mm, ancho automático para mantener proporción (logo rectangular)
+    $pdf->Image($logoPath, 8, 8, 0, 14, 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
 }
 
-// ========== ELIMINADO EL TÍTULO DUPLICADO ==========
-// Ya no usamos SetFont ni Cell para el título, solo el HTML centrado.
-
-// ========== AGREGAR EL CONTENIDO HTML (TABLA Y RESUMEN) ==========
-// Dejar espacio para el logo (alto 18 mm + margen)
-$pdf->SetY(30); // Ajustamos para que el HTML no se superponga al logo
+// ========== CONTENIDO ==========
+$pdf->SetY(25); // Dejar espacio para el logo (alto 14 mm + margen)
 $pdf->SetFont('helvetica', '', 9);
 $pdf->writeHTML($html, true, false, true, false, '');
 
