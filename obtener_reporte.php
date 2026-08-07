@@ -21,7 +21,7 @@ if ($result->num_rows == 0) {
 
 $row = $result->fetch_assoc();
 
-// ========== CORRECCIÓN: CONVERTIR RUTAS ABSOLUTAS A RELATIVAS (si existen) ==========
+// ========== CONVERTIR RUTAS ABSOLUTAS A RELATIVAS ==========
 $campos_fotos = [
     'foto_inicio', 'foto_fin',
     'foto_hotel_ida', 'foto_hotel_regreso',
@@ -38,7 +38,6 @@ foreach ($campos_fotos as $campo) {
         }
         // Si empieza con / (raíz del sistema), la convertimos a relativa
         if (strpos($row[$campo], '/') === 0 && strpos($row[$campo], '/var/www/html/') === false) {
-            // Quitamos la primera barra para hacerla relativa
             $row[$campo] = ltrim($row[$campo], '/');
         }
     }

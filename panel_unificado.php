@@ -522,7 +522,6 @@ function exportarCSV() {
     window.location.href = 'exportar_csv.php?' + params.toString();
 }
 
-// ==================== EXPORTAR PDF (CORREGIDO) ====================
 function exportarPDF() {
     let params = new URLSearchParams(window.location.search);
     window.location.href = 'exportar_pdf_tcpdf.php?' + params.toString();
@@ -543,7 +542,7 @@ function cerrarSemanaModal() {
     document.getElementById('semanaModal').style.display = 'none';
 }
 
-// ==================== VER DETALLE ====================
+// ==================== DETALLE DE VIAJE INDIVIDUAL (CORREGIDO) ====================
 function verDetalle(id) {
     const modal = document.getElementById('detalleModal');
     const body = document.getElementById('modalBody');
@@ -570,9 +569,14 @@ function verDetalle(id) {
                 { label: 'Gasolina Ida', src: data.foto_gasolina_ida },
                 { label: 'Gasolina Regreso', src: data.foto_gasolina_regreso }
             ];
+            // ========== CORRECCIÓN: AGREGAR BARRA INICIAL A LAS FOTOS ==========
             fotos.forEach(foto => {
                 if (foto.src && foto.src.trim() !== '') {
-                    fotosHtml += `<img src="${foto.src}" onclick="verImagenGrande('${foto.src}')" title="${foto.label}">`;
+                    let src = foto.src;
+                    if (!src.startsWith('/') && !src.startsWith('http')) {
+                        src = '/' + src;
+                    }
+                    fotosHtml += `<img src="${src}" onclick="verImagenGrande('${src}')" title="${foto.label}">`;
                 }
             });
             fotosHtml += '</div>';
