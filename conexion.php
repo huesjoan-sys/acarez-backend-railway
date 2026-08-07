@@ -10,4 +10,11 @@ $conn = new mysqli($host, $user, $password, $dbname, $port);
 if ($conn->connect_error) {
     die(json_encode(['error' => 'Error de conexión: ' . $conn->connect_error]));
 }
+
+
+// 👉 ESTABLECER ZONA HORARIA DE MÉXICO EN MySQL
+$conn->query("SET time_zone = 'America/Mexico_City'");
+
+
+
 ?>
