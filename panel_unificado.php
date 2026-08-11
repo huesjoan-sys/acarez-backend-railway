@@ -1,6 +1,4 @@
 <?php
-date_default_timezone_set('America/Mexico_City');
-
 // ============================================
 // ACAREZ - PANEL ADMINISTRATIVO COMPLETO
 // ============================================
@@ -80,6 +78,23 @@ function obtenerSemanasDisponibles($conn) {
     return $conn->query("SELECT DISTINCT CONCAT(YEAR(fecha), '-W', LPAD(WEEK(fecha, 1), 2, '0')) as semana, MIN(DATE(fecha)) as inicio, MAX(DATE(fecha)) as fin FROM viajes GROUP BY semana ORDER BY semana DESC");
 }
 
+// ==============================================
+// FUNCIÓN PARA NORMALIZAR NÚMERO ECONÓMICO
+// ==============================================
+function normalizarNoEconomico($no) {
+    $no = trim($no);
+    // Si tiene formato "A08" (sin guion), lo convertimos a "A-08"
+    if (preg_match('/^([A-Z])(\d+)$/', $no, $matches)) {
+        return $matches[1] . '-' . $matches[2];
+    }
+    // Si ya tiene formato "A-08", lo devolvemos tal cual
+    if (preg_match('/^[A-Z]-\d+$/', $no)) {
+        return $no;
+    }
+    // Si no coincide con ningún formato válido, devolvemos null para manejar error
+    return null;
+}
+
 function manejarCatalogos($conn) {
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // ========== PLACAS ==========
@@ -93,27 +108,43 @@ function manejarCatalogos($conn) {
             $conn->query("UPDATE catalogo_placas SET placa = '$placa' WHERE id = $id");
         }
         
-        // ========== NÚMEROS ECONÓMICOS ==========
+        // ========== NÚMEROS ECONÓMICOS (CON VALIDACIÓN) ==========
         if (isset($_POST['agregar_no_economico'])) {
             $no = trim($_POST['no_economico']);
-            if (!empty($no)) $conn->query("INSERT INTO catalogo_no_economico (no_economico) VALUES ('$no')");
+            $no_normalizado = normalizarNoEconomico($no);
+            if ($no_normalizado !== null && !empty($no_normalizado)) {
+                $conn->query("INSERT INTO catalogo_no_economico (no_economico) VALUES ('$no_normalizado')");
+            } else {
+                // Mostrar error (se puede manejar con una variable de sesión o redirigir con mensaje)
+                $_SESSION['error_catalogo'] = "❌ El número económico debe tener formato A-XX (ej. A-01)";
+            }
         }
         if (isset($_POST['eliminar_no_economico'])) $conn->query("DELETE FROM catalogo_no_economico WHERE id = " . intval($_POST['id']));
         if (isset($_POST['editar_no_economico'])) {
-            $id = intval($_POST['id']); $no = trim($_POST['no_economico']);
-            $conn->query("UPDATE catalogo_no_economico SET no_economico = '$no' WHERE id = $id");
+            $id = intval($_POST['id']);
+            $no = trim($_POST['no_economico']);
+            $no_normalizado = normalizarNoEconomico($no);
+            if ($no_normalizado !== null && !empty($no_normalizado)) {
+                $conn->query("UPDATE catalogo_no_economico SET no_economico = '$no_normalizado' WHERE id = $id");
+            } else {
+                $_SESSION['error_catalogo'] = "❌ El número económico debe tener formato A-XX (ej. A-01)";
+            }
         }
         
-        // ========== CHOFERES ==========
+        // ========== CHOFERES (CON VALIDACIÓN) ==========
         if (isset($_POST['agregar_chofer'])) {
             $nombre = trim($_POST['nombre_chofer']);
             $placas = trim($_POST['placas_chofer']);
             $no_economico = trim($_POST['numero_economico_chofer']);
-            if (!empty($nombre) && !empty($placas) && !empty($no_economico)) {
+            $no_normalizado = normalizarNoEconomico($no_economico);
+            
+            if (!empty($nombre) && !empty($placas) && $no_normalizado !== null && !empty($no_normalizado)) {
                 $stmt = $conn->prepare("INSERT INTO choferes (nombre_chofer, placas, numero_economico) VALUES (?, ?, ?)");
-                $stmt->bind_param("sss", $nombre, $placas, $no_economico);
+                $stmt->bind_param("sss", $nombre, $placas, $no_normalizado);
                 $stmt->execute();
                 $stmt->close();
+            } else {
+                $_SESSION['error_chofer'] = "❌ Todos los campos son obligatorios. El número económico debe tener formato A-XX (ej. A-01)";
             }
         }
         if (isset($_POST['eliminar_chofer'])) {
@@ -265,6 +296,8 @@ function manejarCatalogos($conn) {
         .tabla-semana { min-width: 1000px; white-space: nowrap; }
         .tabla-semana th, .tabla-semana td { white-space: nowrap; padding: 8px 12px; }
         .btn-pequeno { padding: 4px 10px; font-size: 12px; }
+        .error-msg { color: #dc3545; background: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+        .success-msg { color: #28a745; background: #d4edda; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
         @media (max-width: 768px) {
             .grid-2col { grid-template-columns: 1fr; }
             #logoFijo { width: 60px; height: 60px; }
@@ -421,8 +454,18 @@ function manejarCatalogos($conn) {
         <?php endif; ?>
         
     <?php elseif ($seccion == 'catalogos'): ?>
-        <?php $catalogos = manejarCatalogos($conn); ?>
-        <!-- Contenido de catálogos (sin cambios) -->
+        <?php 
+        $catalogos = manejarCatalogos($conn);
+        // Mostrar mensajes de error/success
+        if (isset($_SESSION['error_catalogo'])) {
+            echo '<div class="error-msg">' . $_SESSION['error_catalogo'] . '</div>';
+            unset($_SESSION['error_catalogo']);
+        }
+        if (isset($_SESSION['error_chofer'])) {
+            echo '<div class="error-msg">' . $_SESSION['error_chofer'] . '</div>';
+            unset($_SESSION['error_chofer']);
+        }
+        ?>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div class="card">
                 <h2>📋 Placas</h2>
@@ -448,7 +491,7 @@ function manejarCatalogos($conn) {
             <div class="card">
                 <h2>🔢 Números Económicos</h2>
                 <form method="POST" class="form-inline">
-                    <input type="text" name="no_economico" placeholder="Nuevo No. Económico" required>
+                    <input type="text" name="no_economico" placeholder="Ej: A-01" required>
                     <button type="submit" name="agregar_no_economico" class="btn btn-success">➕ Agregar</button>
                 </form>
                 <div style="overflow-x: auto;">
@@ -472,7 +515,7 @@ function manejarCatalogos($conn) {
             <form method="POST" class="form-inline">
                 <input type="text" name="nombre_chofer" placeholder="Nombre del chofer" required style="flex:2;">
                 <input type="text" name="placas_chofer" placeholder="Placas" required style="flex:1;">
-                <input type="text" name="numero_economico_chofer" placeholder="No. Económico" required style="flex:1;">
+                <input type="text" name="numero_economico_chofer" placeholder="Ej: A-01" required style="flex:1;">
                 <button type="submit" name="agregar_chofer" class="btn btn-success">➕ Agregar</button>
             </form>
             <div style="overflow-x: auto; margin-top: 15px;">
@@ -544,7 +587,7 @@ function cerrarSemanaModal() {
     document.getElementById('semanaModal').style.display = 'none';
 }
 
-// ==================== DETALLE DE VIAJE INDIVIDUAL (CORREGIDO) ====================
+// ==================== DETALLE DE VIAJE ====================
 function verDetalle(id) {
     const modal = document.getElementById('detalleModal');
     const body = document.getElementById('modalBody');
@@ -571,7 +614,6 @@ function verDetalle(id) {
                 { label: 'Gasolina Ida', src: data.foto_gasolina_ida },
                 { label: 'Gasolina Regreso', src: data.foto_gasolina_regreso }
             ];
-            // ========== CORRECCIÓN: AGREGAR BARRA INICIAL A LAS FOTOS ==========
             fotos.forEach(foto => {
                 if (foto.src && foto.src.trim() !== '') {
                     let src = foto.src;
@@ -643,7 +685,7 @@ function eliminarViaje(id) {
         .then(data => {
             alert(data.mensaje);
             if (data.success) {
-                location.reload(); // recargar la página para actualizar la tabla
+                location.reload();
             }
         })
         .catch(error => {
