@@ -139,96 +139,121 @@ function normalizarNoEconomico($no) {
 }
 
 function manejarCatalogos($conn) {
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        // ========== PLACAS ==========
-        if (isset($_POST['agregar_placa'])) {
-            $placa = trim($_POST['placa']);
-            if (!empty($placa)) $conn->query("INSERT INTO catalogo_placas (placa) VALUES ('$placa')");
-        }
-        if (isset($_POST['eliminar_placa'])) $conn->query("DELETE FROM catalogo_placas WHERE id = " . intval($_POST['id']));
-        if (isset($_POST['editar_placa'])) {
-            $id = intval($_POST['id']); $placa = trim($_POST['placa']);
-            $conn->query("UPDATE catalogo_placas SET placa = '$placa' WHERE id = $id");
-        }
-        
-        // ========== NÚMEROS ECONÓMICOS ==========
-        if (isset($_POST['agregar_no_economico'])) {
-            $no = trim($_POST['no_economico']);
-            $no_normalizado = normalizarNoEconomico($no);
-            if ($no_normalizado !== null && !empty($no_normalizado)) {
-                $conn->query("INSERT INTO catalogo_no_economico (no_economico) VALUES ('$no_normalizado')");
-            } else {
-                $_SESSION['error_catalogo'] = "❌ El número económico debe tener formato A-XX (ej. A-01)";
-            }
-        }
-        if (isset($_POST['eliminar_no_economico'])) $conn->query("DELETE FROM catalogo_no_economico WHERE id = " . intval($_POST['id']));
-        if (isset($_POST['editar_no_economico'])) {
-            $id = intval($_POST['id']);
-            $no = trim($_POST['no_economico']);
-            $no_normalizado = normalizarNoEconomico($no);
-            if ($no_normalizado !== null && !empty($no_normalizado)) {
-                $conn->query("UPDATE catalogo_no_economico SET no_economico = '$no_normalizado' WHERE id = $id");
-            } else {
-                $_SESSION['error_catalogo'] = "❌ El número económico debe tener formato A-XX (ej. A-01)";
-            }
-        }
-        
-        // ========== CHOFERES ==========
-        if (isset($_POST['agregar_chofer'])) {
-            $nombre = trim($_POST['nombre_chofer']);
-            $placas = trim($_POST['placas_chofer']);
-            $no_economico = trim($_POST['numero_economico_chofer']);
-            $no_normalizado = normalizarNoEconomico($no_economico);
-            
-            if (!empty($nombre) && !empty($placas) && $no_normalizado !== null && !empty($no_normalizado)) {
-                $stmt = $conn->prepare("INSERT INTO choferes (nombre_chofer, placas, numero_economico) VALUES (?, ?, ?)");
-                $stmt->bind_param("sss", $nombre, $placas, $no_normalizado);
-                $stmt->execute();
-                $stmt->close();
-            } else {
-                $_SESSION['error_chofer'] = "❌ Todos los campos son obligatorios. El número económico debe tener formato A-XX (ej. A-01)";
-            }
-        }
-        if (isset($_POST['eliminar_chofer'])) {
-            $id = intval($_POST['id']);
-            $conn->query("DELETE FROM choferes WHERE id = $id");
-        }
-        
-        // ========== DESTINOS ==========
-        if (isset($_POST['agregar_destino'])) {
-            $razon_social = trim($_POST['razon_social']);
-            $sucursal = trim($_POST['sucursal']);
-            $direccion = trim($_POST['direccion']);
-            if (!empty($razon_social) && !empty($sucursal) && !empty($direccion)) {
-                $stmt = $conn->prepare("INSERT INTO destinos (razon_social, sucursal, direccion) VALUES (?, ?, ?)");
-                $stmt->bind_param("sss", $razon_social, $sucursal, $direccion);
-                $stmt->execute();
-                $stmt->close();
-            }
-        }
-        if (isset($_POST['editar_destino'])) {
-            $id = intval($_POST['id']);
-            $razon_social = trim($_POST['razon_social']);
-            $sucursal = trim($_POST['sucursal']);
-            $direccion = trim($_POST['direccion']);
-            if (!empty($razon_social) && !empty($sucursal) && !empty($direccion)) {
-                $stmt = $conn->prepare("UPDATE destinos SET razon_social = ?, sucursal = ?, direccion = ? WHERE id = ?");
-                $stmt->bind_param("sssi", $razon_social, $sucursal, $direccion, $id);
-                $stmt->execute();
-                $stmt->close();
-            }
-        }
-        if (isset($_POST['eliminar_destino'])) {
-            $id = intval($_POST['id']);
-            $conn->query("DELETE FROM destinos WHERE id = $id");
-        }
-    }
-    
+    // Solo obtener datos, no procesar POST (se procesa arriba)
     return [
         'placas' => $conn->query("SELECT * FROM catalogo_placas ORDER BY id ASC"),
         'no_economicos' => $conn->query("SELECT * FROM catalogo_no_economico ORDER BY id ASC"),
         'choferes' => $conn->query("SELECT id, nombre_chofer, placas, numero_economico FROM choferes ORDER BY nombre_chofer ASC")
     ];
+}
+
+// ==============================================
+// 5. PROCESAR POST (con redirecciones para evitar duplicados)
+// ==============================================
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // ========== PLACAS ==========
+    if (isset($_POST['agregar_placa'])) {
+        $placa = trim($_POST['placa']);
+        if (!empty($placa)) $conn->query("INSERT INTO catalogo_placas (placa) VALUES ('$placa')");
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    if (isset($_POST['eliminar_placa'])) {
+        $id = intval($_POST['id']);
+        $conn->query("DELETE FROM catalogo_placas WHERE id = $id");
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    if (isset($_POST['editar_placa'])) {
+        $id = intval($_POST['id']); $placa = trim($_POST['placa']);
+        $conn->query("UPDATE catalogo_placas SET placa = '$placa' WHERE id = $id");
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    
+    // ========== NÚMEROS ECONÓMICOS ==========
+    if (isset($_POST['agregar_no_economico'])) {
+        $no = trim($_POST['no_economico']);
+        $no_normalizado = normalizarNoEconomico($no);
+        if ($no_normalizado !== null && !empty($no_normalizado)) {
+            $conn->query("INSERT INTO catalogo_no_economico (no_economico) VALUES ('$no_normalizado')");
+        }
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    if (isset($_POST['eliminar_no_economico'])) {
+        $id = intval($_POST['id']);
+        $conn->query("DELETE FROM catalogo_no_economico WHERE id = $id");
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    if (isset($_POST['editar_no_economico'])) {
+        $id = intval($_POST['id']);
+        $no = trim($_POST['no_economico']);
+        $no_normalizado = normalizarNoEconomico($no);
+        if ($no_normalizado !== null && !empty($no_normalizado)) {
+            $conn->query("UPDATE catalogo_no_economico SET no_economico = '$no_normalizado' WHERE id = $id");
+        }
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    
+    // ========== CHOFERES ==========
+    if (isset($_POST['agregar_chofer'])) {
+        $nombre = trim($_POST['nombre_chofer']);
+        $placas = trim($_POST['placas_chofer']);
+        $no_economico = trim($_POST['numero_economico_chofer']);
+        $no_normalizado = normalizarNoEconomico($no_economico);
+        if (!empty($nombre) && !empty($placas) && $no_normalizado !== null && !empty($no_normalizado)) {
+            $stmt = $conn->prepare("INSERT INTO choferes (nombre_chofer, placas, numero_economico) VALUES (?, ?, ?)");
+            $stmt->bind_param("sss", $nombre, $placas, $no_normalizado);
+            $stmt->execute();
+            $stmt->close();
+        }
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    if (isset($_POST['eliminar_chofer'])) {
+        $id = intval($_POST['id']);
+        $conn->query("DELETE FROM choferes WHERE id = $id");
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    
+    // ========== DESTINOS ==========
+    if (isset($_POST['agregar_destino'])) {
+        $razon_social = trim($_POST['razon_social']);
+        $sucursal = trim($_POST['sucursal']);
+        $direccion = trim($_POST['direccion']);
+        if (!empty($razon_social) && !empty($sucursal) && !empty($direccion)) {
+            $stmt = $conn->prepare("INSERT INTO destinos (razon_social, sucursal, direccion) VALUES (?, ?, ?)");
+            $stmt->bind_param("sss", $razon_social, $sucursal, $direccion);
+            $stmt->execute();
+            $stmt->close();
+        }
+        header("Location: ?seccion=destinos");
+        exit;
+    }
+    if (isset($_POST['editar_destino'])) {
+        $id = intval($_POST['id']);
+        $razon_social = trim($_POST['razon_social']);
+        $sucursal = trim($_POST['sucursal']);
+        $direccion = trim($_POST['direccion']);
+        if (!empty($razon_social) && !empty($sucursal) && !empty($direccion)) {
+            $stmt = $conn->prepare("UPDATE destinos SET razon_social = ?, sucursal = ?, direccion = ? WHERE id = ?");
+            $stmt->bind_param("sssi", $razon_social, $sucursal, $direccion, $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        header("Location: ?seccion=destinos");
+        exit;
+    }
+    if (isset($_POST['eliminar_destino'])) {
+        $id = intval($_POST['id']);
+        $conn->query("DELETE FROM destinos WHERE id = $id");
+        header("Location: ?seccion=destinos");
+        exit;
+    }
 }
 ?>
 
