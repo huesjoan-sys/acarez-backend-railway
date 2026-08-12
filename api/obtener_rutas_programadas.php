@@ -1,0 +1,52 @@
+<?php
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+
+require_once '../conexion.php';
+
+$chofer = trim($_GET['chofer'] ?? '');
+
+if (empty($chofer)) {
+    echo json_encode(['success' => false, 'mensaje' => '❌ Chofer no especificado']);
+    exit;
+}
+
+// Buscar rutas programadas para este chofer
+$sql = "SELECT r.*, 
+        (SELECT COUNT(*) FROM paradas WHERE ruta_id = r.id) as total_paradas 
+        FROM rutas r 
+        WHERE r.chofer = ? AND r.estatus = 'programada' 
+        ORDER BY r.fecha_inicio ASC";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("s", $chofer);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$rutas = [];
+while ($row = $result->fetch_assoc()) {
+    // Obtener destinos de la ruta
+    $destinos_sql = "SELECT p.*, d.razon_social, d.sucursal 
+                     FROM paradas p 
+                     LEFT JOIN destinos d ON p.destino_id = d.id 
+                     WHERE p.ruta_id = {$row['id']} 
+                     ORDER BY p.orden ASC";
+    $destinos_result = $conn->query($destinos_sql);
+    $destinos = [];
+    while ($d = $destinos_result->fetch_assoc()) {
+        $destinos[] = [
+            'id' => $d['id'],
+            'destino_id' => $d['destino_id'],
+            'razon_social' => $d['razon_social'],
+            'sucursal' => $d['sucursal'],
+            'direccion' => $d['direccion'],
+            'orden' => $d['orden']
+        ];
+    }
+    $row['destinos'] = $destinos;
+    $rutas[] = $row;
+}
+
+echo json_encode(['success' => true, 'rutas' => $rutas]);
+$stmt->close();
+$conn->close();
+?>
