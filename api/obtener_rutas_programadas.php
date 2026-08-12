@@ -25,7 +25,7 @@ $result = $stmt->get_result();
 $rutas = [];
 while ($row = $result->fetch_assoc()) {
     // Obtener destinos de la ruta
-    $destinos_sql = "SELECT p.*, d.razon_social, d.sucursal 
+    $destinos_sql = "SELECT p.*, d.razon_social, d.sucursal, d.direccion 
                      FROM paradas p 
                      LEFT JOIN destinos d ON p.destino_id = d.id 
                      WHERE p.ruta_id = {$row['id']} 
