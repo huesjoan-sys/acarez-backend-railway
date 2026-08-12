@@ -671,27 +671,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <input type="date" name="fecha_ruta" value="<?= date('Y-m-d') ?>" required>
                 
                 <button type="submit" name="crear_ruta" class="btn btn-success">➕ Crear Ruta</button>
+                
+                <!-- ========== CHECKBOXES DE DESTINOS DENTRO DEL FORM ========== -->
+                <div style="width: 100%; margin-top: 15px;">
+                    <p><strong>Selecciona los destinos para esta ruta:</strong> 
+                    <span style="color:#666; font-size:12px;">(marca los clientes que debe visitar el chofer)</span></p>
+                    <div class="seleccion-destinos">
+                        <?php if($destinos->num_rows == 0): ?>
+                            <p style="color: #999; text-align:center; padding:20px;">No hay destinos registrados. Ve a la sección <strong>Destinos</strong> para agregar.</p>
+                        <?php else: ?>
+                            <?php while($row = $destinos->fetch_assoc()): ?>
+                                <label>
+                                    <input type="checkbox" name="destinos[]" value="<?= $row['id'] ?>">
+                                    <span><?= htmlspecialchars($row['razon_social']) ?> - <?= htmlspecialchars($row['sucursal']) ?></span>
+                                    <span style="color:#999; font-size:11px; margin-left:auto;"><?= htmlspecialchars($row['direccion']) ?></span>
+                                </label>
+                            <?php endwhile; ?>
+                        <?php endif; ?>
+                    </div>
+                    <div style="margin-top:10px; font-size:12px; color:#666;">
+                        <span id="contadorDestinos">0</span> destinos seleccionados
+                    </div>
+                </div>
             </form>
-            
-            <div style="margin-top: 15px;">
-                <p><strong>Selecciona los destinos para esta ruta:</strong> <span style="color:#666; font-size:12px;">(marca los clientes que debe visitar el chofer)</span></p>
-                <div class="seleccion-destinos">
-                    <?php if($destinos->num_rows == 0): ?>
-                        <p style="color: #999; text-align:center; padding:20px;">No hay destinos registrados. Ve a la sección <strong>Destinos</strong> para agregar.</p>
-                    <?php else: ?>
-                        <?php while($row = $destinos->fetch_assoc()): ?>
-                            <label>
-                                <input type="checkbox" name="destinos[]" value="<?= $row['id'] ?>">
-                                <span><?= htmlspecialchars($row['razon_social']) ?> - <?= htmlspecialchars($row['sucursal']) ?></span>
-                                <span style="color:#999; font-size:11px; margin-left:auto;"><?= htmlspecialchars($row['direccion']) ?></span>
-                            </label>
-                        <?php endwhile; ?>
-                    <?php endif; ?>
-                </div>
-                <div style="margin-top:10px; font-size:12px; color:#666;">
-                    <span id="contadorDestinos">0</span> destinos seleccionados
-                </div>
-            </div>
         </div>
         
         <!-- ========== LISTADO DE RUTAS ========== -->
@@ -731,7 +733,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </thead>
                         <tbody>
                             <?php while($row = $rutas->fetch_assoc()): 
-                                // Obtener destinos de la ruta
                                 $destinos_ruta = $conn->query("
                                     SELECT p.*, d.razon_social, d.sucursal 
                                     FROM paradas p 
