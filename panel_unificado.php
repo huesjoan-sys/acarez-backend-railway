@@ -113,14 +113,14 @@ function obtenerDestinos($conn) {
 }
 
 function obtenerRutas($conn, $filtros = []) {
-    $where = "";
+    $where = "1=1";
     if (!empty($filtros['chofer'])) {
-        $where = "WHERE chofer LIKE '%" . $conn->real_escape_string($filtros['chofer']) . "%'";
+        $where .= " AND chofer LIKE '%" . $conn->real_escape_string($filtros['chofer']) . "%'";
     }
     if (!empty($filtros['estatus'])) {
-        $where .= ($where ? " AND" : " WHERE") . " estatus = '" . $conn->real_escape_string($filtros['estatus']) . "'";
+        $where .= " AND estatus = '" . $conn->real_escape_string($filtros['estatus']) . "'";
     }
-    $sql = "SELECT * FROM rutas $where ORDER BY id DESC";
+    $sql = "SELECT * FROM rutas WHERE $where ORDER BY id DESC";
     return $conn->query($sql);
 }
 
@@ -401,9 +401,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             font-size: 12px;
             font-weight: bold;
         }
+        .badge-programada { background: #fff3cd; color: #856404; }
         .badge-activa { background: #d4edda; color: #155724; }
         .badge-completada { background: #cce5ff; color: #004085; }
         .badge-cancelada { background: #f8d7da; color: #721c24; }
+        .seleccion-destinos {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .seleccion-destinos label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 4px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .seleccion-destinos label:hover {
+            background: #f0f0f0;
+        }
+        .seleccion-destinos input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #4A148C;
+        }
         @media (max-width: 768px) {
             .grid-2col { grid-template-columns: 1fr; }
             #logoFijo { width: 60px; height: 60px; }
@@ -565,6 +592,63 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <?php elseif ($seccion == 'rutas'): ?>
         <!-- ========== SECCIÓN RUTAS ========== -->
         <?php
+        // Procesar creación de ruta
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['crear_ruta'])) {
+            $chofer_id = intval($_POST['chofer_id']);
+            $fecha_ruta = $_POST['fecha_ruta'] ?? date('Y-m-d');
+            $destinos_seleccionados = $_POST['destinos'] ?? [];
+            
+            if ($chofer_id > 0 && !empty($destinos_seleccionados)) {
+                // Obtener datos del chofer
+                $chofer_sql = "SELECT nombre_chofer, placas, numero_economico FROM choferes WHERE id = $chofer_id AND activo = 1";
+                $chofer_result = $conn->query($chofer_sql);
+                $chofer = $chofer_result->fetch_assoc();
+                
+                if ($chofer) {
+                    // Insertar ruta
+                    $fecha_inicio = $fecha_ruta . ' 00:00:00';
+                    $stmt = $conn->prepare("INSERT INTO rutas (chofer, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, 0, 'programada')");
+                    $origen = 'Pendiente';
+                    $stmt->bind_param("sssss", $chofer['nombre_chofer'], $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
+                    $stmt->execute();
+                    $ruta_id = $conn->insert_id;
+                    $stmt->close();
+                    
+                    // Insertar paradas (destinos)
+                    $orden = 0;
+                    foreach ($destinos_seleccionados as $destino_id) {
+                        $orden++;
+                        $stmt = $conn->prepare("INSERT INTO paradas (ruta_id, orden, destino_id, km_actual) VALUES (?, ?, ?, NULL)");
+                        $stmt->bind_param("iii", $ruta_id, $orden, $destino_id);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                    
+                    // Actualizar número de paradas en la ruta
+                    $conn->query("UPDATE rutas SET numero_paradas = $orden WHERE id = $ruta_id");
+                    
+                    echo '<div class="success-msg">✅ Ruta creada correctamente con ' . $orden . ' destinos.</div>';
+                }
+            } else {
+                echo '<div class="error-msg">❌ Debes seleccionar un chofer y al menos un destino.</div>';
+            }
+        }
+        
+        // Procesar eliminación de ruta
+        if (isset($_GET['eliminar_ruta']) && is_numeric($_GET['eliminar_ruta'])) {
+            $ruta_id = intval($_GET['eliminar_ruta']);
+            $conn->query("DELETE FROM paradas WHERE ruta_id = $ruta_id");
+            $conn->query("DELETE FROM rutas WHERE id = $ruta_id");
+            echo '<div class="success-msg">✅ Ruta eliminada correctamente.</div>';
+        }
+        
+        // Obtener choferes activos
+        $choferes = $conn->query("SELECT id, nombre_chofer, placas, numero_economico FROM choferes WHERE activo = 1 ORDER BY nombre_chofer ASC");
+        
+        // Obtener destinos activos
+        $destinos = $conn->query("SELECT id, razon_social, sucursal, direccion FROM destinos WHERE activo = 1 ORDER BY razon_social ASC");
+        
+        // Obtener rutas con filtros
         $filtro_chofer = $_GET['filtro_chofer'] ?? '';
         $filtro_estatus = $_GET['filtro_estatus'] ?? '';
         $filtros = [];
@@ -573,13 +657,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $rutas = obtenerRutas($conn, $filtros);
         ?>
         
+        <!-- ========== FORMULARIO CREAR RUTA ========== -->
         <div class="card">
-            <h2>🔄 Rutas de Viaje</h2>
+            <h2>➕ Crear Nueva Ruta</h2>
+            <form method="POST" class="form-inline" style="flex-wrap: wrap; gap: 10px;">
+                <select name="chofer_id" required style="min-width: 200px;">
+                    <option value="">-- Seleccionar Chofer --</option>
+                    <?php while($row = $choferes->fetch_assoc()): ?>
+                        <option value="<?= $row['id'] ?>"><?= htmlspecialchars($row['nombre_chofer']) ?> (<?= $row['placas'] ?>)</option>
+                    <?php endwhile; ?>
+                </select>
+                
+                <input type="date" name="fecha_ruta" value="<?= date('Y-m-d') ?>" required>
+                
+                <button type="submit" name="crear_ruta" class="btn btn-success">➕ Crear Ruta</button>
+            </form>
+            
+            <div style="margin-top: 15px;">
+                <p><strong>Selecciona los destinos para esta ruta:</strong> <span style="color:#666; font-size:12px;">(marca los clientes que debe visitar el chofer)</span></p>
+                <div class="seleccion-destinos">
+                    <?php if($destinos->num_rows == 0): ?>
+                        <p style="color: #999; text-align:center; padding:20px;">No hay destinos registrados. Ve a la sección <strong>Destinos</strong> para agregar.</p>
+                    <?php else: ?>
+                        <?php while($row = $destinos->fetch_assoc()): ?>
+                            <label>
+                                <input type="checkbox" name="destinos[]" value="<?= $row['id'] ?>">
+                                <span><?= htmlspecialchars($row['razon_social']) ?> - <?= htmlspecialchars($row['sucursal']) ?></span>
+                                <span style="color:#999; font-size:11px; margin-left:auto;"><?= htmlspecialchars($row['direccion']) ?></span>
+                            </label>
+                        <?php endwhile; ?>
+                    <?php endif; ?>
+                </div>
+                <div style="margin-top:10px; font-size:12px; color:#666;">
+                    <span id="contadorDestinos">0</span> destinos seleccionados
+                </div>
+            </div>
+        </div>
+        
+        <!-- ========== LISTADO DE RUTAS ========== -->
+        <div class="card">
+            <h2>🔄 Rutas Programadas</h2>
             <form method="GET" class="form-inline">
                 <input type="hidden" name="seccion" value="rutas">
                 <input type="text" name="filtro_chofer" placeholder="Filtrar por chofer" value="<?= htmlspecialchars($filtro_chofer) ?>">
                 <select name="filtro_estatus">
                     <option value="">-- Todos --</option>
+                    <option value="programada" <?= $filtro_estatus == 'programada' ? 'selected' : '' ?>>Programada</option>
                     <option value="activa" <?= $filtro_estatus == 'activa' ? 'selected' : '' ?>>Activa</option>
                     <option value="completada" <?= $filtro_estatus == 'completada' ? 'selected' : '' ?>>Completada</option>
                     <option value="cancelada" <?= $filtro_estatus == 'cancelada' ? 'selected' : '' ?>>Cancelada</option>
@@ -589,34 +712,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </form>
             
             <?php if($rutas->num_rows == 0): ?>
-                <p>No hay rutas registradas.</p>
+                <p style="margin-top:15px;">No hay rutas registradas.</p>
             <?php else: ?>
-                <div style="overflow-x: auto;">
+                <div style="overflow-x: auto; margin-top:15px;">
                     <table>
                         <thead>
                             <tr>
                                 <th>ID</th>
                                 <th>Chofer</th>
                                 <th>Placas</th>
-                                <th>Origen</th>
-                                <th>Destino Final</th>
+                                <th>Fecha</th>
+                                <th>Destinos</th>
                                 <th>Km Total</th>
-                                <th>Paradas</th>
-                                <th>Total Gastos</th>
+                                <th>Gastos</th>
                                 <th>Estatus</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php while($row = $rutas->fetch_assoc()): ?>
+                            <?php while($row = $rutas->fetch_assoc()): 
+                                // Obtener destinos de la ruta
+                                $destinos_ruta = $conn->query("
+                                    SELECT p.*, d.razon_social, d.sucursal 
+                                    FROM paradas p 
+                                    LEFT JOIN destinos d ON p.destino_id = d.id 
+                                    WHERE p.ruta_id = {$row['id']} 
+                                    ORDER BY p.orden ASC
+                                ");
+                                $destinos_list = [];
+                                while($d = $destinos_ruta->fetch_assoc()) {
+                                    $nombre = $d['razon_social'] ?? $d['destino_manual'] ?? 'Destino';
+                                    $destinos_list[] = $nombre;
+                                }
+                                $destinos_text = implode(', ', array_slice($destinos_list, 0, 3));
+                                if (count($destinos_list) > 3) $destinos_text .= ' +' . (count($destinos_list) - 3) . ' más';
+                            ?>
                             <tr>
                                 <td><?= $row['id'] ?></td>
                                 <td><?= htmlspecialchars($row['chofer']) ?></td>
                                 <td><?= htmlspecialchars($row['placas']) ?></td>
-                                <td><?= htmlspecialchars($row['origen']) ?></td>
-                                <td><?= htmlspecialchars($row['destino_final'] ?? '-') ?></td>
+                                <td><?= date('d/m/Y', strtotime($row['fecha_inicio'])) ?></td>
+                                <td><?= $destinos_text ?></td>
                                 <td><?= number_format($row['km_total'] ?? 0, 0) ?> km</td>
-                                <td><?= $row['numero_paradas'] ?></td>
                                 <td>$<?= number_format($row['total_gastos'] ?? 0, 2) ?></td>
                                 <td>
                                     <span class="badge badge-<?= $row['estatus'] ?>">
@@ -624,7 +761,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     </span>
                                 </td>
                                 <td>
-                                    <button class="btn btn-info" onclick="verDetalleRuta(<?= $row['id'] ?>)">Ver Detalle</button>
+                                    <button class="btn btn-info btn-pequeno" onclick="verDetalleRuta(<?= $row['id'] ?>)">Ver Detalle</button>
+                                    <a href="?seccion=rutas&eliminar_ruta=<?= $row['id'] ?>" 
+                                       class="btn btn-danger btn-pequeno" 
+                                       onclick="return confirm('¿Eliminar esta ruta y todas sus paradas?')">🗑️</a>
                                 </td>
                             </tr>
                             <?php endwhile; ?>
@@ -659,10 +799,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <td id="ds_sucursal_<?= $row['id'] ?>"><?= htmlspecialchars($row['sucursal']) ?></td>
                             <td id="ds_direccion_<?= $row['id'] ?>"><?= htmlspecialchars($row['direccion']) ?></td>
                             <td>
-                                <button class="btn btn-warning" onclick="editarDestino(<?= $row['id'] ?>)">✏️</button>
+                                <button class="btn btn-warning btn-pequeno" onclick="editarDestino(<?= $row['id'] ?>)">✏️</button>
                                 <form method="POST" style="display:inline;">
                                     <input type="hidden" name="id" value="<?= $row['id'] ?>">
-                                    <button type="submit" name="eliminar_destino" class="btn btn-danger" onclick="return confirm('¿Eliminar este destino?')">🗑️</button>
+                                    <button type="submit" name="eliminar_destino" class="btn btn-danger btn-pequeno" onclick="return confirm('¿Eliminar este destino?')">🗑️</button>
                                 </form>
                             </td>
                         </tr>
@@ -711,10 +851,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <tr>
                             <td><?= $row['id'] ?></td>
                             <td id="placa_<?= $row['id'] ?>"><?= htmlspecialchars($row['placa']) ?></td>
-                            <td><button class="btn btn-warning" onclick="editarPlaca(<?= $row['id'] ?>, '<?= $row['placa'] ?>')">✏️</button>
+                            <td><button class="btn btn-warning btn-pequeno" onclick="editarPlaca(<?= $row['id'] ?>, '<?= $row['placa'] ?>')">✏️</button>
                                 <form method="POST" style="display:inline;">
                                     <input type="hidden" name="id" value="<?= $row['id'] ?>">
-                                    <button type="submit" name="eliminar_placa" class="btn btn-danger" onclick="return confirm('¿Eliminar?')">🗑️</button>
+                                    <button type="submit" name="eliminar_placa" class="btn btn-danger btn-pequeno" onclick="return confirm('¿Eliminar?')">🗑️</button>
                                 </form>
                             </td>
                         </tr>
@@ -735,10 +875,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <tr>
                             <td><?= $row['id'] ?></td>
                             <td id="noe_<?= $row['id'] ?>"><?= htmlspecialchars($row['no_economico']) ?></td>
-                            <td><button class="btn btn-warning" onclick="editarNoEconomico(<?= $row['id'] ?>, '<?= $row['no_economico'] ?>')">✏️</button>
+                            <td><button class="btn btn-warning btn-pequeno" onclick="editarNoEconomico(<?= $row['id'] ?>, '<?= $row['no_economico'] ?>')">✏️</button>
                                 <form method="POST" style="display:inline;">
                                     <input type="hidden" name="id" value="<?= $row['id'] ?>">
-                                    <button type="submit" name="eliminar_no_economico" class="btn btn-danger" onclick="return confirm('¿Eliminar?')">🗑️</button>
+                                    <button type="submit" name="eliminar_no_economico" class="btn btn-danger btn-pequeno" onclick="return confirm('¿Eliminar?')">🗑️</button>
                                 </form>
                             </td>
                         </tr>
@@ -767,7 +907,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <td>
                             <form method="POST" style="display:inline;">
                                 <input type="hidden" name="id" value="<?= $row['id'] ?>">
-                                <button type="submit" name="eliminar_chofer" class="btn btn-danger" onclick="return confirm('¿Eliminar este chofer?')">🗑️</button>
+                                <button type="submit" name="eliminar_chofer" class="btn btn-danger btn-pequeno" onclick="return confirm('¿Eliminar este chofer?')">🗑️</button>
                             </form>
                         </td>
                     </tr>
@@ -798,6 +938,15 @@ function girarLogoInferior() {
 
 document.addEventListener('DOMContentLoaded', () => girarLogoInferior());
 
+// ============ CONTADOR DE DESTINOS SELECCIONADOS ============
+document.querySelectorAll('input[name="destinos[]"]').forEach(function(checkbox) {
+    checkbox.addEventListener('change', function() {
+        const contador = document.querySelectorAll('input[name="destinos[]"]:checked').length;
+        document.getElementById('contadorDestinos').textContent = contador;
+    });
+});
+
+// ============ EXPORTACIONES ============
 function exportarExcel() {
     let params = new URLSearchParams(window.location.search);
     window.location.href = 'exportar_excel.php?' + params.toString();
@@ -813,23 +962,24 @@ function exportarPDF() {
     window.location.href = 'exportar_pdf_tcpdf.php?' + params.toString();
 }
 
-function verImagenGrande(src) {
-    const modal = document.getElementById('imageModal');
-    const modalImg = document.getElementById('modalImage');
-    modal.style.display = 'flex';
-    modalImg.src = src;
-}
-
-function cerrarImageModal() {
-    document.getElementById('imageModal').style.display = 'none';
+// ============ MODALES ============
+function cerrarModal() {
+    document.getElementById('detalleModal').style.display = 'none';
 }
 
 function cerrarSemanaModal() {
     document.getElementById('semanaModal').style.display = 'none';
 }
 
-function cerrarModal() {
-    document.getElementById('detalleModal').style.display = 'none';
+function cerrarImageModal() {
+    document.getElementById('imageModal').style.display = 'none';
+}
+
+function verImagenGrande(src) {
+    const modal = document.getElementById('imageModal');
+    const modalImg = document.getElementById('modalImage');
+    modal.style.display = 'flex';
+    modalImg.src = src;
 }
 
 // ============ DETALLE DE VIAJE ============
@@ -951,9 +1101,9 @@ function verDetalleRuta(id) {
             const r = data.ruta;
             const paradas = data.paradas || [];
             let paradasHtml = paradas.length === 0 ? '<p>No hay paradas</p>' : 
-                '<ul>' + paradas.map(p => {
+                '<ul style="list-style:none; padding:0;">' + paradas.map(p => {
                     const destino = p.razon_social ? p.razon_social + ' - ' + p.sucursal : p.destino_manual || 'Manual';
-                    return `<li>#${p.orden}: ${destino} - Gastos: $${(parseFloat(p.gasto_hotel||0)+parseFloat(p.gasto_caseta||0)+parseFloat(p.gasto_comida||0)+parseFloat(p.gasto_estacionamiento||0)+parseFloat(p.gasto_gasolina||0)).toFixed(2)}</li>`;
+                    return `<li style="padding:6px 0; border-bottom:1px solid #eee;">#${p.orden}: <strong>${destino}</strong> - Gastos: $${(parseFloat(p.gasto_hotel||0)+parseFloat(p.gasto_caseta||0)+parseFloat(p.gasto_comida||0)+parseFloat(p.gasto_estacionamiento||0)+parseFloat(p.gasto_gasolina||0)).toFixed(2)}</li>`;
                 }).join('') + '</ul>';
             
             body.innerHTML = `
@@ -968,6 +1118,7 @@ function verDetalleRuta(id) {
                     <p><strong>Paradas:</strong> ${r.numero_paradas}</p>
                     <p><strong>Total gastos:</strong> $${parseFloat(r.total_gastos || 0).toFixed(2)}</p>
                     <p><strong>Estatus:</strong> <span class="badge badge-${r.estatus}">${r.estatus}</span></p>
+                    <p><strong>Inicio:</strong> ${r.fecha_inicio} ${r.fecha_fin ? '| Fin: ' + r.fecha_fin : ''}</p>
                 </div>
                 <h3>📍 Paradas</h3>
                 ${paradasHtml}
