@@ -15,7 +15,7 @@ if (empty($chofer)) {
 $sql = "SELECT r.*, 
         (SELECT COUNT(*) FROM paradas WHERE ruta_id = r.id) as total_paradas 
         FROM rutas r 
-        WHERE r.chofer = ? AND r.estatus = 'programada' 
+        WHERE r.chofer = ? AND r.estatus IN ('programada','activa') 
         ORDER BY r.fecha_inicio ASC";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("s", $chofer);
