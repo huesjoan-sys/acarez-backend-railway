@@ -11,13 +11,14 @@ if ($ruta_id <= 0) {
     exit;
 }
 
-// Seleccionamos explícitamente los campos para evitar ambigüedades con d.id y p.id
+// Se elimina p.estado para evitar el fallo en MySQL
 $sql = "SELECT 
             p.id,
             p.ruta_id,
             p.destino_id,
             p.orden,
-            COALESCE(p.estatus, p.estado, 'programada') AS estatus,
+            p.km_actual,
+            COALESCE(p.estatus, 'programada') AS estatus,
             d.razon_social, 
             d.sucursal,
             d.direccion
@@ -33,9 +34,8 @@ $result = $stmt->get_result();
 
 $paradas = [];
 while ($row = $result->fetch_assoc()) {
-    // Normalizamos el estatus para Flutter
     $estatusLwr = strtolower(trim($row['estatus']));
-    $esCompletado = ($estatusLwr === 'completado' || $estatusLwr === 'completada' || $estatusLwr === '1' || $row['estatus'] == 1);
+    $esCompletado = ($estatusLwr === 'completado' || $estatusLwr === 'completada' || $estatusLwr === '1' || $row['km_actual'] !== null);
     
     $row['estatus'] = $esCompletado ? 'completado' : 'programada';
     $row['completado'] = $esCompletado;
