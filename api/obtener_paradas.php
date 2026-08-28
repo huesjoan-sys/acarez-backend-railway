@@ -72,11 +72,12 @@ try {
     // =======================================================
     // 2. OBTENER LOS GASTOS ASOCIADOS A LA RUTA (DESDE LA TABLA GASTOS)
     // =======================================================
+    // Usamos COALESCE por seguridad en caso de que la columna se llame 'concepto' o 'tipo_gasto'
     $sql_gastos = "SELECT 
                 id,
-                concepto,
+                COALESCE(concepto, tipo_gasto, 'Gasto') AS concepto,
                 monto,
-                foto,
+                COALESCE(foto, foto_comprobante, '') AS foto,
                 fecha
             FROM gastos 
             WHERE ruta_id = ? 
