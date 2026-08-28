@@ -28,6 +28,16 @@ if ($parada_id <= 0) {
     exit;
 }
 
+// 1. Obtener la ruta_id vinculada a la parada
+$resRuta = $conn->query("SELECT ruta_id FROM paradas WHERE id = $parada_id");
+if (!$resRuta || $resRuta->num_rows === 0) {
+    echo json_encode(['success' => false, 'mensaje' => '❌ No se encontró la ruta asociada']);
+    exit;
+}
+$rutaData = $resRuta->fetch_assoc();
+$ruta_id = intval($rutaData['ruta_id']);
+
+// 2. Actualizar la tabla paradas como completada
 $stmt = $conn->prepare("UPDATE paradas SET 
     gasto_hotel = ?, 
     gasto_caseta = ?, 
@@ -46,6 +56,7 @@ $stmt = $conn->prepare("UPDATE paradas SET
     foto_gasolina = ?,
     completada = 1
 WHERE id = ?");
+
 $stmt->bind_param("dddddssssssssssi", 
     $gasto_hotel, $gasto_caseta, $gasto_comida, $gasto_estacionamiento, $gasto_gasolina,
     $metodo_pago_hotel, $metodo_pago_caseta, $metodo_pago_comida, $metodo_pago_estacionamiento, $metodo_pago_gasolina,
@@ -54,17 +65,34 @@ $stmt->bind_param("dddddssssssssssi",
 );
 
 if ($stmt->execute()) {
-    // Obtener ruta_id para actualizar total_gastos
-    $ruta = $conn->query("SELECT ruta_id FROM paradas WHERE id = $parada_id")->fetch_assoc();
-    $ruta_id = $ruta['ruta_id'];
-    
-    // Recalcular total_gastos de la ruta
+    // 3. Insertar los gastos activos en la tabla 'gastos' para lectura de la APP
+    $stmtGasto = $conn->prepare("INSERT INTO gastos (ruta_id, concepto, monto, foto, fecha) VALUES (?, ?, ?, ?, NOW())");
+
+    $mapaGastos = [
+        'Hotel / Hospedaje' => ['monto' => $gasto_hotel, 'foto' => $foto_hotel],
+        'Caseta'            => ['monto' => $gasto_caseta, 'foto' => $foto_caseta],
+        'Comida / Alimentos'=> ['monto' => $gasto_comida, 'foto' => $foto_comida],
+        'Estacionamiento'   => ['monto' => $gasto_estacionamiento, 'foto' => $foto_estacionamiento],
+        'Gasolina / Diesel' => ['monto' => $gasto_gasolina, 'foto' => $foto_gasolina],
+    ];
+
+    foreach ($mapaGastos as $concepto => $datos) {
+        if ($datos['monto'] > 0) {
+            $monto = $datos['monto'];
+            $foto = $datos['foto'];
+            $stmtGasto->bind_param("isds", $ruta_id, $concepto, $monto, $foto);
+            $stmtGasto->execute();
+        }
+    }
+    $stmtGasto->close();
+
+    // 4. Recalcular total_gastos en la ruta
     $total_gastos = $gasto_hotel + $gasto_caseta + $gasto_comida + $gasto_estacionamiento + $gasto_gasolina;
     $conn->query("UPDATE rutas SET total_gastos = total_gastos + $total_gastos WHERE id = $ruta_id");
     
     echo json_encode([
         'success' => true,
-        'mensaje' => '✅ Parada completada correctamente'
+        'mensaje' => '✅ Parada y gastos registrados correctamente'
     ]);
 } else {
     echo json_encode(['success' => false, 'mensaje' => '❌ Error: ' . $stmt->error]);
