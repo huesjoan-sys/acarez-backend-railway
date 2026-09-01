@@ -57,16 +57,36 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
 }
 
 // ==============================================
-// 2. OBTENER DATOS DE RUTA CON PARADAS
+// 2. OBTENER DATOS DE RUTA CON PARADAS Y GASTOS (CORREGIDO)
 // ==============================================
 if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     header('Content-Type: application/json');
     $ruta_id = intval($_GET['ruta_id']);
     
+    // Obtener datos generales de la ruta
     $ruta_sql = "SELECT * FROM rutas WHERE id = $ruta_id";
     $ruta_result = $conn->query($ruta_sql);
     $ruta = $ruta_result->fetch_assoc();
     
+    // Calcular el total de gastos desde la tabla 'gastos'
+    $sql_gastos_suma = "SELECT COALESCE(SUM(monto), 0) AS total_gastos FROM gastos WHERE ruta_id = $ruta_id";
+    $res_gastos_suma = $conn->query($sql_gastos_suma);
+    $row_suma = $res_gastos_suma->fetch_assoc();
+    $total_gastos = floatval($row_suma['total_gastos']);
+    
+    if ($ruta) {
+        $ruta['total_gastos'] = $total_gastos;
+    }
+    
+    // Obtener la lista desglosada de los gastos
+    $sql_lista_gastos = "SELECT id, concepto, monto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
+    $res_lista_gastos = $conn->query($sql_lista_gastos);
+    $gastos = [];
+    while ($g = $res_lista_gastos->fetch_assoc()) {
+        $gastos[] = $g;
+    }
+    
+    // Obtener las paradas de la ruta
     $paradas_sql = "SELECT p.*, d.razon_social, d.sucursal 
                     FROM paradas p 
                     LEFT JOIN destinos d ON p.destino_id = d.id 
@@ -81,7 +101,9 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     echo json_encode([
         'success' => true,
         'ruta' => $ruta,
-        'paradas' => $paradas
+        'paradas' => $paradas,
+        'gastos' => $gastos,
+        'total_gastos' => $total_gastos
     ]);
     exit;
 }
@@ -115,12 +137,19 @@ function obtenerDestinos($conn) {
 function obtenerRutas($conn, $filtros = []) {
     $where = "1=1";
     if (!empty($filtros['chofer'])) {
-        $where .= " AND chofer LIKE '%" . $conn->real_escape_string($filtros['chofer']) . "%'";
+        $where .= " AND r.chofer LIKE '%" . $conn->real_escape_string($filtros['chofer']) . "%'";
     }
     if (!empty($filtros['estatus'])) {
-        $where .= " AND estatus = '" . $conn->real_escape_string($filtros['estatus']) . "'";
+        $where .= " AND r.estatus = '" . $conn->real_escape_string($filtros['estatus']) . "'";
     }
-    $sql = "SELECT * FROM rutas WHERE $where ORDER BY id DESC";
+    
+    $sql = "SELECT r.*, COALESCE(SUM(g.monto), 0) AS total_gastos 
+            FROM rutas r 
+            LEFT JOIN gastos g ON g.ruta_id = r.id 
+            WHERE $where 
+            GROUP BY r.id 
+            ORDER BY r.id DESC";
+            
     return $conn->query($sql);
 }
 
@@ -139,7 +168,6 @@ function normalizarNoEconomico($no) {
 }
 
 function manejarCatalogos($conn) {
-    // Solo obtener datos, no procesar POST (se procesa arriba)
     return [
         'placas' => $conn->query("SELECT * FROM catalogo_placas ORDER BY id ASC"),
         'no_economicos' => $conn->query("SELECT * FROM catalogo_no_economico ORDER BY id ASC"),
@@ -486,7 +514,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <div class="main-content">
     
     <?php if ($seccion == 'reportes'): ?>
-        <!-- ========== SECCIÓN REPORTES (VIAJES) ========== -->
         <?php
         $semana = $_GET['semana'] ?? '';
         $fecha_inicio = $_GET['fecha_inicio'] ?? '';
@@ -590,22 +617,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <?php endif; ?>
         
     <?php elseif ($seccion == 'rutas'): ?>
-        <!-- ========== SECCIÓN RUTAS ========== -->
         <?php
-        // Procesar creación de ruta
         if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['crear_ruta'])) {
             $chofer_id = intval($_POST['chofer_id']);
             $fecha_ruta = $_POST['fecha_ruta'] ?? date('Y-m-d');
             $destinos_seleccionados = $_POST['destinos'] ?? [];
             
             if ($chofer_id > 0 && !empty($destinos_seleccionados)) {
-                // Obtener datos del chofer
                 $chofer_sql = "SELECT nombre_chofer, placas, numero_economico FROM choferes WHERE id = $chofer_id AND activo = 1";
                 $chofer_result = $conn->query($chofer_sql);
                 $chofer = $chofer_result->fetch_assoc();
                 
                 if ($chofer) {
-                    // Insertar ruta
                     $fecha_inicio = $fecha_ruta . ' 00:00:00';
                     $stmt = $conn->prepare("INSERT INTO rutas (chofer, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, 0, 'programada')");
                     $origen = 'Pendiente';
@@ -614,7 +637,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $ruta_id = $conn->insert_id;
                     $stmt->close();
                     
-                    // Insertar paradas (destinos)
                     $orden = 0;
                     foreach ($destinos_seleccionados as $destino_id) {
                         $orden++;
@@ -624,7 +646,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $stmt->close();
                     }
                     
-                    // Actualizar número de paradas en la ruta
                     $conn->query("UPDATE rutas SET numero_paradas = $orden WHERE id = $ruta_id");
                     
                     echo '<div class="success-msg">✅ Ruta creada correctamente con ' . $orden . ' destinos.</div>';
@@ -634,7 +655,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
         
-        // Procesar eliminación de ruta
         if (isset($_GET['eliminar_ruta']) && is_numeric($_GET['eliminar_ruta'])) {
             $ruta_id = intval($_GET['eliminar_ruta']);
             $conn->query("DELETE FROM paradas WHERE ruta_id = $ruta_id");
@@ -642,13 +662,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             echo '<div class="success-msg">✅ Ruta eliminada correctamente.</div>';
         }
         
-        // Obtener choferes activos
         $choferes = $conn->query("SELECT id, nombre_chofer, placas, numero_economico FROM choferes WHERE activo = 1 ORDER BY nombre_chofer ASC");
-        
-        // Obtener destinos activos
         $destinos = $conn->query("SELECT id, razon_social, sucursal, direccion FROM destinos WHERE activo = 1 ORDER BY razon_social ASC");
         
-        // Obtener rutas con filtros
         $filtro_chofer = $_GET['filtro_chofer'] ?? '';
         $filtro_estatus = $_GET['filtro_estatus'] ?? '';
         $filtros = [];
@@ -657,7 +673,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $rutas = obtenerRutas($conn, $filtros);
         ?>
         
-        <!-- ========== FORMULARIO CREAR RUTA ========== -->
         <div class="card">
             <h2>➕ Crear Nueva Ruta</h2>
             <form method="POST" class="form-inline" style="flex-wrap: wrap; gap: 10px;">
@@ -672,7 +687,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 <button type="submit" name="crear_ruta" class="btn btn-success">➕ Crear Ruta</button>
                 
-                <!-- ========== CHECKBOXES DE DESTINOS DENTRO DEL FORM ========== -->
                 <div style="width: 100%; margin-top: 15px;">
                     <p><strong>Selecciona los destinos para esta ruta:</strong> 
                     <span style="color:#666; font-size:12px;">(marca los clientes que debe visitar el chofer)</span></p>
@@ -696,7 +710,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </form>
         </div>
         
-        <!-- ========== LISTADO DE RUTAS ========== -->
         <div class="card">
             <h2>🔄 Rutas Programadas</h2>
             <form method="GET" class="form-inline">
@@ -776,7 +789,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
         
     <?php elseif ($seccion == 'destinos'): ?>
-        <!-- ========== SECCIÓN DESTINOS ========== -->
         <?php $destinos = obtenerDestinos($conn); ?>
         
         <div class="card">
@@ -826,7 +838,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
         
     <?php elseif ($seccion == 'catalogos'): ?>
-        <!-- ========== SECCIÓN CATÁLOGOS ========== -->
         <?php 
         $catalogos = manejarCatalogos($conn);
         if (isset($_SESSION['error_catalogo'])) {
@@ -920,7 +931,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </div>
 
 <script>
-// ============ FUNCIONES GENERALES ============
 function toggleMenu() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('overlay');
@@ -939,7 +949,6 @@ function girarLogoInferior() {
 
 document.addEventListener('DOMContentLoaded', () => girarLogoInferior());
 
-// ============ CONTADOR DE DESTINOS SELECCIONADOS ============
 document.querySelectorAll('input[name="destinos[]"]').forEach(function(checkbox) {
     checkbox.addEventListener('change', function() {
         const contador = document.querySelectorAll('input[name="destinos[]"]:checked').length;
@@ -947,7 +956,6 @@ document.querySelectorAll('input[name="destinos[]"]').forEach(function(checkbox)
     });
 });
 
-// ============ EXPORTACIONES ============
 function exportarExcel() {
     let params = new URLSearchParams(window.location.search);
     window.location.href = 'exportar_excel.php?' + params.toString();
@@ -963,7 +971,6 @@ function exportarPDF() {
     window.location.href = 'exportar_pdf_tcpdf.php?' + params.toString();
 }
 
-// ============ MODALES ============
 function cerrarModal() {
     document.getElementById('detalleModal').style.display = 'none';
 }
@@ -983,7 +990,6 @@ function verImagenGrande(src) {
     modalImg.src = src;
 }
 
-// ============ DETALLE DE VIAJE ============
 function verDetalle(id) {
     const modal = document.getElementById('detalleModal');
     const body = document.getElementById('modalBody');
@@ -1067,7 +1073,6 @@ function verDetalle(id) {
         });
 }
 
-// ============ ELIMINAR VIAJE ============
 function eliminarViaje(id) {
     if (!confirm('¿Estás seguro de eliminar este viaje? Se eliminarán también todas las fotos asociadas.')) {
         return;
@@ -1085,7 +1090,6 @@ function eliminarViaje(id) {
         });
 }
 
-// ============ DETALLE RUTA ============
 function verDetalleRuta(id) {
     const modal = document.getElementById('detalleModal');
     const body = document.getElementById('modalBody');
@@ -1104,7 +1108,7 @@ function verDetalleRuta(id) {
             let paradasHtml = paradas.length === 0 ? '<p>No hay paradas</p>' : 
                 '<ul style="list-style:none; padding:0;">' + paradas.map(p => {
                     const destino = p.razon_social ? p.razon_social + ' - ' + p.sucursal : p.destino_manual || 'Manual';
-                    return `<li style="padding:6px 0; border-bottom:1px solid #eee;">#${p.orden}: <strong>${destino}</strong> - Gastos: $${(parseFloat(p.gasto_hotel||0)+parseFloat(p.gasto_caseta||0)+parseFloat(p.gasto_comida||0)+parseFloat(p.gasto_estacionamiento||0)+parseFloat(p.gasto_gasolina||0)).toFixed(2)}</li>`;
+                    return `<li style="padding:6px 0; border-bottom:1px solid #eee;">#${p.orden}: <strong>${destino}</strong></li>`;
                 }).join('') + '</ul>';
             
             body.innerHTML = `
@@ -1130,7 +1134,6 @@ function verDetalleRuta(id) {
         });
 }
 
-// ============ EDICIÓN DE CATÁLOGOS ============
 function editarPlaca(id, actual) {
     let nueva = prompt("Editar placa:", actual);
     if (nueva && nueva !== actual) {
@@ -1153,7 +1156,6 @@ function editarNoEconomico(id, actual) {
     }
 }
 
-// ============ EDITAR DESTINO ============
 function editarDestino(id) {
     document.getElementById('edit_destino_id').value = id;
     document.getElementById('edit_razon_social').value = document.getElementById('ds_razon_' + id).innerText;
@@ -1167,7 +1169,6 @@ function cancelarEditarDestino() {
     document.getElementById('editarDestinoForm').style.display = 'none';
 }
 
-// ============ DETALLE SEMANA ============
 document.getElementById('btnDetalleSemana')?.addEventListener('click', function() {
     const semanaSelect = document.getElementById('semanaSelect');
     const semanaValor = semanaSelect.value;
