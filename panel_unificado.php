@@ -57,7 +57,7 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
 }
 
 // ==============================================
-// 2. OBTENER DATOS DE RUTA CON PARADAS Y GASTOS (CORREGIDO)
+// 2. OBTENER DATOS DE RUTA CON PARADAS Y GASTOS
 // ==============================================
 if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     header('Content-Type: application/json');
@@ -109,7 +109,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
 }
 
 // ==============================================
-// FUNCIONES DE APOYO
+// 3. FUNCIONES DE APOYO
 // ==============================================
 function obtenerReportes($conn, $filtros = []) {
     $where = "";
@@ -143,6 +143,7 @@ function obtenerRutas($conn, $filtros = []) {
         $where .= " AND r.estatus = '" . $conn->real_escape_string($filtros['estatus']) . "'";
     }
     
+    // Consulta actualizada para sumar gastos directamente en la vista general
     $sql = "SELECT r.*, COALESCE(SUM(g.monto), 0) AS total_gastos 
             FROM rutas r 
             LEFT JOIN gastos g ON g.ruta_id = r.id 
@@ -154,7 +155,7 @@ function obtenerRutas($conn, $filtros = []) {
 }
 
 // ==============================================
-// FUNCIÓN PARA NORMALIZAR NÚMERO ECONÓMICO
+// 4. FUNCIÓN PARA NORMALIZAR NÚMERO ECONÓMICO
 // ==============================================
 function normalizarNoEconomico($no) {
     $no = trim($no);
@@ -176,9 +177,31 @@ function manejarCatalogos($conn) {
 }
 
 // ==============================================
-// 5. PROCESAR POST (con redirecciones para evitar duplicados)
+// 5. PROCESAR POST (App de Flutter y Formularios Web)
 // ==============================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    
+    // ========== REGISTRAR GASTOS DESDE FLUTTER ==========
+    if (isset($_POST['accion']) && $_POST['accion'] == 'registrar_parada') {
+        header('Content-Type: application/json');
+        
+        $ruta_id = intval($_POST['ruta_id']);
+        $parada_id = intval($_POST['parada_id']);
+        $concepto = isset($_POST['tipo_gasto']) ? $conn->real_escape_string($_POST['tipo_gasto']) : 'Gasto';
+        $monto = isset($_POST['monto']) ? floatval($_POST['monto']) : 0.0;
+        
+        // Insertar el gasto directamente en la nueva tabla 'gastos'
+        if ($monto > 0 || $concepto != 'Sin Gastos') {
+            $stmt = $conn->prepare("INSERT INTO gastos (ruta_id, concepto, monto, fecha) VALUES (?, ?, ?, NOW())");
+            $stmt->bind_param("isd", $ruta_id, $concepto, $monto);
+            $stmt->execute();
+            $stmt->close();
+        }
+        
+        echo json_encode(['success' => true, 'mensaje' => 'Gasto y parada registrados correctamente']);
+        exit;
+    }
+
     // ========== PLACAS ==========
     if (isset($_POST['agregar_placa'])) {
         $placa = trim($_POST['placa']);
