@@ -78,8 +78,8 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         $ruta['total_gastos'] = $total_gastos;
     }
     
-    // Obtener la lista desglosada de los gastos
-    $sql_lista_gastos = "SELECT id, concepto, monto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
+    // Obtener la lista desglosada de los gastos con su parada_id asociado
+    $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
     $res_lista_gastos = $conn->query($sql_lista_gastos);
     $gastos = [];
     while ($g = $res_lista_gastos->fetch_assoc()) {
@@ -87,7 +87,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     }
     
     // Obtener las paradas de la ruta
-    $paradas_sql = "SELECT p.*, d.razon_social, d.sucursal 
+    $paradas_sql = "SELECT p.*, d.razon_social, d.sucursal, d.direccion 
                     FROM paradas p 
                     LEFT JOIN destinos d ON p.destino_id = d.id 
                     WHERE p.ruta_id = $ruta_id 
@@ -143,7 +143,6 @@ function obtenerRutas($conn, $filtros = []) {
         $where .= " AND r.estatus = '" . $conn->real_escape_string($filtros['estatus']) . "'";
     }
     
-    // Consulta actualizada para sumar gastos directamente en la vista general
     $sql = "SELECT r.*, COALESCE(SUM(g.monto), 0) AS total_gastos 
             FROM rutas r 
             LEFT JOIN gastos g ON g.ruta_id = r.id 
@@ -190,13 +189,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $concepto = isset($_POST['tipo_gasto']) ? $conn->real_escape_string($_POST['tipo_gasto']) : 'Gasto';
         $monto = isset($_POST['monto']) ? floatval($_POST['monto']) : 0.0;
         
-        // Insertar el gasto directamente en la nueva tabla 'gastos'
+        // Insertar el gasto relacionándolo con la ruta y la parada específica
         if ($monto > 0 || $concepto != 'Sin Gastos') {
-            $stmt = $conn->prepare("INSERT INTO gastos (ruta_id, concepto, monto, fecha) VALUES (?, ?, ?, NOW())");
-            $stmt->bind_param("isd", $ruta_id, $concepto, $monto);
+            $stmt = $conn->prepare("INSERT INTO gastos (ruta_id, parada_id, concepto, monto, fecha) VALUES (?, ?, ?, ?, NOW())");
+            $stmt->bind_param("iisd", $ruta_id, $parada_id, $concepto, $monto);
             $stmt->execute();
             $stmt->close();
         }
+        
+        // Marcar la parada como completada en la tabla paradas
+        $conn->query("UPDATE paradas SET estatus = 'completado' WHERE id = $parada_id");
         
         echo json_encode(['success' => true, 'mensaje' => 'Gasto y parada registrados correctamente']);
         exit;
@@ -1128,11 +1130,46 @@ function verDetalleRuta(id) {
             }
             const r = data.ruta;
             const paradas = data.paradas || [];
-            let paradasHtml = paradas.length === 0 ? '<p>No hay paradas</p>' : 
-                '<ul style="list-style:none; padding:0;">' + paradas.map(p => {
-                    const destino = p.razon_social ? p.razon_social + ' - ' + p.sucursal : p.destino_manual || 'Manual';
-                    return `<li style="padding:6px 0; border-bottom:1px solid #eee;">#${p.orden}: <strong>${destino}</strong></li>`;
-                }).join('') + '</ul>';
+            const gastos = data.gastos || [];
+            
+            let paradasHtml = paradas.length === 0 ? '<p>No hay paradas registradas</p>' : '';
+            
+            paradas.forEach((p) => {
+                const esCompletado = p.estatus && p.estatus.toLowerCase() === 'completado';
+                const destinoNombre = p.razon_social ? `${p.razon_social} - ${p.sucursal}` : (p.destino_manual || 'Destino');
+                
+                // Filtrar los gastos que pertenecen específicamente a esta parada
+                const gastosParada = gastos.filter(g => g.parada_id == p.id);
+                
+                let gastosDetalleHtml = '';
+                if (gastosParada.length > 0) {
+                    gastosDetalleHtml = '<div style="margin-top:8px; padding-left:15px; border-left:2px solid #4A148C; font-size:13px;">';
+                    gastosParada.forEach(gp => {
+                        gastosDetalleHtml += `<div>• <strong>${gp.concepto}:</strong> $${parseFloat(gp.monto).toFixed(2)}</div>`;
+                    });
+                    gastosDetalleHtml += '</div>';
+                } else {
+                    gastosDetalleHtml = '<div style="margin-top:4px; font-size:12px; color:#888;">Sin gastos registrados en esta parada</div>';
+                }
+
+                // Estilo condicional: verde si está completado, blanco si está pendiente (igual que en Flutter)
+                const bgColor = esCompletado ? '#e8f5e9' : '#ffffff';
+                const borderColor = esCompletado ? '#4caf50' : '#ddd';
+                const badgeEstado = esCompletado 
+                    ? '<span style="color:#2e7d32; font-weight:bold; font-size:12px;">✅ Completado</span>' 
+                    : '<span style="color:#ed6c02; font-weight:bold; font-size:12px;">⏳ Pendiente</span>';
+
+                paradasHtml += `
+                    <div style="background:${bgColor}; border:1px solid ${borderColor}; border-radius:8px; padding:12px; margin-bottom:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong>#${p.orden} - ${destinoNombre}</strong>
+                            ${badgeEstado}
+                        </div>
+                        <div style="font-size:13px; color:#555; margin-top:4px;">📍 ${p.direccion || ''}</div>
+                        ${gastosDetalleHtml}
+                    </div>
+                `;
+            });
             
             body.innerHTML = `
                 <span class="cerrar-modal" onclick="cerrarModal()">&times;</span>
@@ -1143,12 +1180,10 @@ function verDetalleRuta(id) {
                     <p><strong>Origen:</strong> ${r.origen}</p>
                     <p><strong>Destino Final:</strong> ${r.destino_final || 'Pendiente'}</p>
                     <p><strong>Km total:</strong> ${r.km_total || 0} km</p>
-                    <p><strong>Paradas:</strong> ${r.numero_paradas}</p>
-                    <p><strong>Total gastos:</strong> $${parseFloat(r.total_gastos || 0).toFixed(2)}</p>
-                    <p><strong>Estatus:</strong> <span class="badge badge-${r.estatus}">${r.estatus}</span></p>
-                    <p><strong>Inicio:</strong> ${r.fecha_inicio} ${r.fecha_fin ? '| Fin: ' + r.fecha_fin : ''}</p>
+                    <p><strong>Total de Gastos de la Ruta:</strong> <span style="color:green; font-weight:bold;">$${parseFloat(r.total_gastos || 0).toFixed(2)}</span></p>
+                    <p><strong>Estatus General:</strong> <span class="badge badge-${r.estatus}">${r.estatus}</span></p>
                 </div>
-                <h3>📍 Paradas</h3>
+                <h3 style="margin-top:15px; margin-bottom:10px;">📍 Destinos y Gastos por Parada</h3>
                 ${paradasHtml}
             `;
         })
