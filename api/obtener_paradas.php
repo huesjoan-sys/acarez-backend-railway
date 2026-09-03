@@ -5,13 +5,15 @@ header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
-// Respuesta rápida para peticiones OPTIONS (CORS preflight)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
 
-require_once '../conexion.php'; // Ajusta la ruta a tu archivo conexion.php si es necesario
+require_once '../conexion.php';
+
+// Activar excepciones estrictas para que el bloque try-catch realmente funcione con mysqli
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $ruta_id = intval($_GET['ruta_id'] ?? 0);
 
@@ -25,9 +27,7 @@ if ($ruta_id <= 0) {
 }
 
 try {
-    // =======================================================
     // 1. OBTENER LAS PARADAS DE LA RUTA
-    // =======================================================
     $sql_paradas = "SELECT 
                 p.id,
                 p.ruta_id,
@@ -51,7 +51,6 @@ try {
     $paradas = [];
     while ($row = $result_paradas->fetch_assoc()) {
         $estatusLwr = strtolower(trim($row['estatus']));
-        // Una parada se considera completada si su estatus es completado o tiene km_actual registrado
         $esCompletado = ($estatusLwr === 'completado' || $estatusLwr === 'completada' || $estatusLwr === '1' || $row['km_actual'] !== null);
         
         $paradas[] = [
@@ -69,10 +68,7 @@ try {
     }
     $stmt_paradas->close();
 
-    // =======================================================
-    // 2. OBTENER LOS GASTOS ASOCIADOS A LA RUTA (DESDE LA TABLA GASTOS)
-    // =======================================================
-    // Usamos COALESCE por seguridad en caso de que la columna se llame 'concepto' o 'tipo_gasto'
+    // 2. OBTENER LOS GASTOS ASOCIADOS A LA RUTA
     $sql_gastos = "SELECT 
                 id,
                 COALESCE(concepto, tipo_gasto, 'Gasto') AS concepto,
@@ -105,9 +101,7 @@ try {
     }
     $stmt_gastos->close();
 
-    // =======================================================
     // 3. RESPUESTA UNIFICADA EN JSON
-    // =======================================================
     http_response_code(200);
     echo json_encode([
         'success'      => true,
@@ -116,15 +110,16 @@ try {
         'total_gastos' => round($total_gastos, 2)
     ], JSON_UNESCAPED_UNICODE);
 
-} catch (Exception $e) {
+} catch (mysqli_sql_exception $e) { // Captura específica de errores de MySQL
     http_response_code(500);
+    // Registrar el error interno en Render sin exponer la consulta SQL exacta a la app
+    error_log("Error de BD en obtener_paradas.php: " . $e->getMessage());
     echo json_encode([
         'success' => false,
-        'mensaje' => 'Error en el servidor al procesar la solicitud.',
-        'error'   => $e->getMessage()
+        'mensaje' => 'Error de conexión o de consulta en la base de datos.',
     ], JSON_UNESCAPED_UNICODE);
 } finally {
-    if (isset($conn) && $conn) {
+    if (isset($conn) && $conn instanceof mysqli) {
         $conn->close();
     }
 }
