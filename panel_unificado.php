@@ -78,8 +78,8 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         $ruta['total_gastos'] = $total_gastos;
     }
     
-    // Obtener la lista desglosada de los gastos con su parada_id asociado
-    $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
+    // Obtener la lista desglosada de los gastos con su parada_id asociado (incluyendo la foto)
+    $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, foto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
     $res_lista_gastos = $conn->query($sql_lista_gastos);
     $gastos = [];
     while ($g = $res_lista_gastos->fetch_assoc()) {
@@ -1135,7 +1135,7 @@ function verDetalleRuta(id) {
             let paradasHtml = paradas.length === 0 ? '<p>No hay paradas registradas</p>' : '';
             
             paradas.forEach((p) => {
-                // 🟢 CORRECCIÓN: Soporta tanto 'completado' como 'completada'
+                // Validación para detectar estatus 'completado', 'completada' o completada = 1
                 const estatusLwr = p.estatus ? p.estatus.toLowerCase().trim() : '';
                 const esCompletado = estatusLwr === 'completado' || estatusLwr === 'completada' || p.completada == 1;
                 
@@ -1148,7 +1148,18 @@ function verDetalleRuta(id) {
                 if (gastosParada.length > 0) {
                     gastosDetalleHtml = '<div style="margin-top:8px; padding-left:15px; border-left:2px solid #4A148C; font-size:13px;">';
                     gastosParada.forEach(gp => {
-                        gastosDetalleHtml += `<div>• <strong>${gp.concepto}:</strong> $${parseFloat(gp.monto).toFixed(2)}</div>`;
+                        gastosDetalleHtml += `<div style="margin-bottom: 6px;">• <strong>${gp.concepto}:</strong> $${parseFloat(gp.monto).toFixed(2)}`;
+                        
+                        // Miniatura de la foto del comprobante si existe
+                        if (gp.foto && gp.foto.trim() !== '') {
+                            let fotoSrc = gp.foto;
+                            if (!fotoSrc.startsWith('/') && !fotoSrc.startsWith('http')) {
+                                fotoSrc = '/' + fotoSrc;
+                            }
+                            gastosDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #ddd;" onclick="verImagenGrande('${fotoSrc}')" title="Ver comprobante"></div>`;
+                        }
+                        
+                        gastosDetalleHtml += `</div>`;
                     });
                     gastosDetalleHtml += '</div>';
                 } else {
