@@ -198,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         // Marcar la parada como completada en la tabla paradas
-        $conn->query("UPDATE paradas SET estatus = 'completado' WHERE id = $parada_id");
+        $conn->query("UPDATE paradas SET estatus = 'completada', completada = 1 WHERE id = $parada_id");
         
         echo json_encode(['success' => true, 'mensaje' => 'Gasto y parada registrados correctamente']);
         exit;
@@ -1037,7 +1037,7 @@ function verDetalle(id) {
                 { label: 'Comida Ida', src: data.foto_comida_ida },
                 { label: 'Comida Regreso', src: data.foto_comida_regreso },
                 { label: 'Estacionamiento Ida', src: data.foto_estac_ida },
-                { label: 'Estacionamiento Regreso', src: data.foto_estac_regreso },
+                { label: 'Estacionamiento Regreso', src: data.foto_estac_reg },
                 { label: 'Gasolina Ida', src: data.foto_gasolina_ida },
                 { label: 'Gasolina Regreso', src: data.foto_gasolina_regreso }
             ];
@@ -1135,7 +1135,10 @@ function verDetalleRuta(id) {
             let paradasHtml = paradas.length === 0 ? '<p>No hay paradas registradas</p>' : '';
             
             paradas.forEach((p) => {
-                const esCompletado = p.estatus && p.estatus.toLowerCase() === 'completado';
+                // 🟢 CORRECCIÓN: Soporta tanto 'completado' como 'completada'
+                const estatusLwr = p.estatus ? p.estatus.toLowerCase().trim() : '';
+                const esCompletado = estatusLwr === 'completado' || estatusLwr === 'completada' || p.completada == 1;
+                
                 const destinoNombre = p.razon_social ? `${p.razon_social} - ${p.sucursal}` : (p.destino_manual || 'Destino');
                 
                 // Filtrar los gastos que pertenecen específicamente a esta parada
@@ -1152,7 +1155,7 @@ function verDetalleRuta(id) {
                     gastosDetalleHtml = '<div style="margin-top:4px; font-size:12px; color:#888;">Sin gastos registrados en esta parada</div>';
                 }
 
-                // Estilo condicional: verde si está completado, blanco si está pendiente (igual que en Flutter)
+                // Estilo condicional: verde si está completado, blanco si está pendiente
                 const bgColor = esCompletado ? '#e8f5e9' : '#ffffff';
                 const borderColor = esCompletado ? '#4caf50' : '#ddd';
                 const badgeEstado = esCompletado 
