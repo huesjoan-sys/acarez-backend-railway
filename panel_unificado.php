@@ -78,7 +78,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         $ruta['total_gastos'] = $total_gastos;
     }
     
-    // Obtener la lista desglosada de los gastos con su parada_id asociado (incluyendo la foto)
+    // Obtener la lista desglosada de los gastos con su parada_id asociado
     $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, foto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
     $res_lista_gastos = $conn->query($sql_lista_gastos);
     $gastos = [];
@@ -171,7 +171,8 @@ function manejarCatalogos($conn) {
     return [
         'placas' => $conn->query("SELECT * FROM catalogo_placas ORDER BY id ASC"),
         'no_economicos' => $conn->query("SELECT * FROM catalogo_no_economico ORDER BY id ASC"),
-        'choferes' => $conn->query("SELECT id, nombre_chofer, placas, numero_economico FROM choferes ORDER BY nombre_chofer ASC")
+        'choferes' => $conn->query("SELECT id, nombre_chofer, placas, numero_economico FROM choferes WHERE activo = 1 ORDER BY nombre_chofer ASC"),
+        'auxiliares' => $conn->query("SELECT id, nombre FROM auxiliares WHERE activo = 1 ORDER BY nombre ASC")
     ];
 }
 
@@ -189,7 +190,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $concepto = isset($_POST['tipo_gasto']) ? $conn->real_escape_string($_POST['tipo_gasto']) : 'Gasto';
         $monto = isset($_POST['monto']) ? floatval($_POST['monto']) : 0.0;
         
-        // Insertar el gasto relacionándolo con la ruta y la parada específica
         if ($monto > 0 || $concepto != 'Sin Gastos') {
             $stmt = $conn->prepare("INSERT INTO gastos (ruta_id, parada_id, concepto, monto, fecha) VALUES (?, ?, ?, ?, NOW())");
             $stmt->bind_param("iisd", $ruta_id, $parada_id, $concepto, $monto);
@@ -197,7 +197,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt->close();
         }
         
-        // Marcar la parada como completada en la tabla paradas
         $conn->query("UPDATE paradas SET estatus = 'completada', completada = 1 WHERE id = $parada_id");
         
         echo json_encode(['success' => true, 'mensaje' => 'Gasto y parada registrados correctamente']);
@@ -269,6 +268,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['eliminar_chofer'])) {
         $id = intval($_POST['id']);
         $conn->query("DELETE FROM choferes WHERE id = $id");
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+
+    // ========== AUXILIARES DE CONDUCTOR ==========
+    if (isset($_POST['agregar_auxiliar'])) {
+        $nombre = trim($_POST['nombre_auxiliar']);
+        if (!empty($nombre)) {
+            $stmt = $conn->prepare("INSERT INTO auxiliares (nombre, activo) VALUES (?, 1)");
+            $stmt->bind_param("s", $nombre);
+            $stmt->execute();
+            $stmt->close();
+        }
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    if (isset($_POST['eliminar_auxiliar'])) {
+        $id = intval($_POST['id']);
+        $conn->query("UPDATE auxiliares SET activo = 0 WHERE id = $id");
         header("Location: ?seccion=catalogos");
         exit;
     }
@@ -645,6 +663,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <?php
         if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['crear_ruta'])) {
             $chofer_id = intval($_POST['chofer_id']);
+            $auxiliar_nombre = trim($_POST['auxiliar_nombre'] ?? '');
             $fecha_ruta = $_POST['fecha_ruta'] ?? date('Y-m-d');
             $destinos_seleccionados = $_POST['destinos'] ?? [];
             
@@ -655,9 +674,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 if ($chofer) {
                     $fecha_inicio = $fecha_ruta . ' 00:00:00';
-                    $stmt = $conn->prepare("INSERT INTO rutas (chofer, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, 0, 'programada')");
+                    $stmt = $conn->prepare("INSERT INTO rutas (chofer, auxiliar, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, 0, 'programada')");
                     $origen = 'Pendiente';
-                    $stmt->bind_param("sssss", $chofer['nombre_chofer'], $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
+                    $stmt->bind_param("sssss", $chofer['nombre_chofer'], $auxiliar_nombre, $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
                     $stmt->execute();
                     $ruta_id = $conn->insert_id;
                     $stmt->close();
@@ -688,6 +707,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         $choferes = $conn->query("SELECT id, nombre_chofer, placas, numero_economico FROM choferes WHERE activo = 1 ORDER BY nombre_chofer ASC");
+        $auxiliares_lista = $conn->query("SELECT id, nombre FROM auxiliares WHERE activo = 1 ORDER BY nombre ASC");
         $destinos = $conn->query("SELECT id, razon_social, sucursal, direccion FROM destinos WHERE activo = 1 ORDER BY razon_social ASC");
         
         $filtro_chofer = $_GET['filtro_chofer'] ?? '';
@@ -701,12 +721,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="card">
             <h2>➕ Crear Nueva Ruta</h2>
             <form method="POST" class="form-inline" style="flex-wrap: wrap; gap: 10px;">
-                <select name="chofer_id" required style="min-width: 200px;">
-                    <option value="">-- Seleccionar Chofer --</option>
-                    <?php while($row = $choferes->fetch_assoc()): ?>
-                        <option value="<?= $row['id'] ?>"><?= htmlspecialchars($row['nombre_chofer']) ?> (<?= $row['placas'] ?>)</option>
-                    <?php endwhile; ?>
-                </select>
+                <div style="display:flex; flex-direction:column; gap:8px; min-width: 250px;">
+                    <select name="chofer_id" required style="width: 100%;">
+                        <option value="">-- Seleccionar Chofer --</option>
+                        <?php while($row = $choferes->fetch_assoc()): ?>
+                            <option value="<?= $row['id'] ?>"><?= htmlspecialchars($row['nombre_chofer']) ?> (<?= $row['placas'] ?>)</option>
+                        <?php endwhile; ?>
+                    </select>
+
+                    <select name="auxiliar_nombre" style="width: 100%;">
+                        <option value="">-- Sin Auxiliar / Opcional --</option>
+                        <?php while($aux = $auxiliares_lista->fetch_assoc()): ?>
+                            <option value="<?= htmlspecialchars($aux['nombre']) ?>"><?= htmlspecialchars($aux['nombre']) ?></option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
                 
                 <input type="date" name="fecha_ruta" value="<?= date('Y-m-d') ?>" required>
                 
@@ -760,6 +789,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <tr>
                                 <th>ID</th>
                                 <th>Chofer</th>
+                                <th>Auxiliar</th>
                                 <th>Placas</th>
                                 <th>Fecha</th>
                                 <th>Destinos</th>
@@ -789,6 +819,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <tr>
                                 <td><?= $row['id'] ?></td>
                                 <td><?= htmlspecialchars($row['chofer']) ?></td>
+                                <td><?= !empty($row['auxiliar']) ? htmlspecialchars($row['auxiliar']) : '<span style="color:#aaa;">Sin auxiliar</span>' ?></td>
                                 <td><?= htmlspecialchars($row['placas']) ?></td>
                                 <td><?= date('d/m/Y', strtotime($row['fecha_inicio'])) ?></td>
                                 <td><?= $destinos_text ?></td>
@@ -924,33 +955,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </table>
             </div>
         </div>
-        <div class="card" style="margin-top:20px;">
-            <h2>👤 Choferes</h2>
-            <form method="POST" class="form-inline">
-                <input type="text" name="nombre_chofer" placeholder="Nombre del chofer" required style="flex:2;">
-                <input type="text" name="placas_chofer" placeholder="Placas" required style="flex:1;">
-                <input type="text" name="numero_economico_chofer" placeholder="Ej: A-01" required style="flex:1;">
-                <button type="submit" name="agregar_chofer" class="btn btn-success">➕ Agregar</button>
-            </form>
-            <table class="tabla-catalogo">
-                <thead><tr><th>ID</th><th>Nombre</th><th>Placas</th><th>No. Económico</th><th>Acciones</th></tr></thead>
-                <tbody>
-                    <?php while($row = $catalogos['choferes']->fetch_assoc()): ?>
-                    <tr>
-                        <td><?= $row['id'] ?></td>
-                        <td id="chofer_nombre_<?= $row['id'] ?>"><?= htmlspecialchars($row['nombre_chofer']) ?></td>
-                        <td id="chofer_placas_<?= $row['id'] ?>"><?= htmlspecialchars($row['placas']) ?></td>
-                        <td id="chofer_noe_<?= $row['id'] ?>"><?= htmlspecialchars($row['numero_economico']) ?></td>
-                        <td>
-                            <form method="POST" style="display:inline;">
-                                <input type="hidden" name="id" value="<?= $row['id'] ?>">
-                                <button type="submit" name="eliminar_chofer" class="btn btn-danger btn-pequeno" onclick="return confirm('¿Eliminar este chofer?')">🗑️</button>
-                            </form>
-                        </td>
-                    </tr>
-                    <?php endwhile; ?>
-                </tbody>
-            </table>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
+            <div class="card">
+                <h2>👤 Choferes</h2>
+                <form method="POST" class="form-inline">
+                    <input type="text" name="nombre_chofer" placeholder="Nombre del chofer" required style="flex:2;">
+                    <input type="text" name="placas_chofer" placeholder="Placas" required style="flex:1;">
+                    <input type="text" name="numero_economico_chofer" placeholder="Ej: A-01" required style="flex:1;">
+                    <button type="submit" name="agregar_chofer" class="btn btn-success">➕ Agregar</button>
+                </form>
+                <table class="tabla-catalogo">
+                    <thead><tr><th>ID</th><th>Nombre</th><th>Placas</th><th>No. Económico</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                        <?php while($row = $catalogos['choferes']->fetch_assoc()): ?>
+                        <tr>
+                            <td><?= $row['id'] ?></td>
+                            <td id="chofer_nombre_<?= $row['id'] ?>"><?= htmlspecialchars($row['nombre_chofer']) ?></td>
+                            <td id="chofer_placas_<?= $row['id'] ?>"><?= htmlspecialchars($row['placas']) ?></td>
+                            <td id="chofer_noe_<?= $row['id'] ?>"><?= htmlspecialchars($row['numero_economico']) ?></td>
+                            <td>
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                                    <button type="submit" name="eliminar_chofer" class="btn btn-danger btn-pequeno" onclick="return confirm('¿Eliminar este chofer?')">🗑️</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>🤝 Auxiliares de Conductor</h2>
+                <form method="POST" class="form-inline">
+                    <input type="text" name="nombre_auxiliar" placeholder="Nombre del auxiliar" required style="flex:2;">
+                    <button type="submit" name="agregar_auxiliar" class="btn btn-success">➕ Agregar</button>
+                </form>
+                <table class="tabla-catalogo">
+                    <thead><tr><th>ID</th><th>Nombre Auxiliar</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                        <?php while($row = $catalogos['auxiliares']->fetch_assoc()): ?>
+                        <tr>
+                            <td><?= $row['id'] ?></td>
+                            <td><?= htmlspecialchars($row['nombre']) ?></td>
+                            <td>
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                                    <button type="submit" name="eliminar_auxiliar" class="btn btn-danger btn-pequeno" onclick="return confirm('¿Eliminar este auxiliar?')">🗑️</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
     <?php endif; ?>
 </div>
@@ -1098,23 +1157,6 @@ function verDetalle(id) {
         });
 }
 
-function eliminarViaje(id) {
-    if (!confirm('¿Estás seguro de eliminar este viaje? Se eliminarán también todas las fotos asociadas.')) {
-        return;
-    }
-    fetch('eliminar_viaje.php?id=' + id)
-        .then(response => response.json())
-        .then(data => {
-            alert(data.mensaje);
-            if (data.success) {
-                location.reload();
-            }
-        })
-        .catch(error => {
-            alert('Error al eliminar: ' + error);
-        });
-}
-
 function verDetalleRuta(id) {
     const modal = document.getElementById('detalleModal');
     const body = document.getElementById('modalBody');
@@ -1135,13 +1177,10 @@ function verDetalleRuta(id) {
             let paradasHtml = paradas.length === 0 ? '<p>No hay paradas registradas</p>' : '';
             
             paradas.forEach((p) => {
-                // Validación para detectar estatus 'completado', 'completada' o completada = 1
                 const estatusLwr = p.estatus ? p.estatus.toLowerCase().trim() : '';
                 const esCompletado = estatusLwr === 'completado' || estatusLwr === 'completada' || p.completada == 1;
                 
                 const destinoNombre = p.razon_social ? `${p.razon_social} - ${p.sucursal}` : (p.destino_manual || 'Destino');
-                
-                // Filtrar los gastos que pertenecen específicamente a esta parada
                 const gastosParada = gastos.filter(g => g.parada_id == p.id);
                 
                 let gastosDetalleHtml = '';
@@ -1150,7 +1189,6 @@ function verDetalleRuta(id) {
                     gastosParada.forEach(gp => {
                         gastosDetalleHtml += `<div style="margin-bottom: 6px;">• <strong>${gp.concepto}:</strong> $${parseFloat(gp.monto).toFixed(2)}`;
                         
-                        // Miniatura de la foto del comprobante si existe
                         if (gp.foto && gp.foto.trim() !== '') {
                             let fotoSrc = gp.foto;
                             if (!fotoSrc.startsWith('/') && !fotoSrc.startsWith('http')) {
@@ -1166,7 +1204,6 @@ function verDetalleRuta(id) {
                     gastosDetalleHtml = '<div style="margin-top:4px; font-size:12px; color:#888;">Sin gastos registrados en esta parada</div>';
                 }
 
-                // Estilo condicional: verde si está completado, blanco si está pendiente
                 const bgColor = esCompletado ? '#e8f5e9' : '#ffffff';
                 const borderColor = esCompletado ? '#4caf50' : '#ddd';
                 const badgeEstado = esCompletado 
@@ -1190,6 +1227,7 @@ function verDetalleRuta(id) {
                 <h2 style="color:#4A148C;">📋 Detalle de Ruta #${r.id}</h2>
                 <div style="background:#f5f5f5; padding:15px; border-radius:10px; margin:10px 0;">
                     <p><strong>Chofer:</strong> ${r.chofer}</p>
+                    <p><strong>Auxiliar:</strong> ${r.auxiliar ? r.auxiliar : 'Sin auxiliar'}</p>
                     <p><strong>Vehículo:</strong> ${r.placas} | ${r.no_economico}</p>
                     <p><strong>Origen:</strong> ${r.origen}</p>
                     <p><strong>Destino Final:</strong> ${r.destino_final || 'Pendiente'}</p>
@@ -1286,7 +1324,7 @@ document.getElementById('btnDetalleSemana')?.addEventListener('click', function(
                         <td style="white-space:nowrap; text-align:right;">$${v.gasto}</td>
                     </tr>`;
                 });
-                html += '</tbody></table></div>';
+                html += '</tbody>mtable></div>';
             } else {
                 html += '<p>No hay viajes en esta semana</p>';
             }
