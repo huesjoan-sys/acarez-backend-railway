@@ -674,9 +674,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 if ($chofer) {
                     $fecha_inicio = $fecha_ruta . ' 00:00:00';
-                    $stmt = $conn->prepare("INSERT INTO rutas (chofer, auxiliar, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, 0, 'programada')");
+                    
+                    // 🟢 CORRECCIÓN: 6 marcas '?' y 'ssssss' correspondientes a 6 parámetros
+                    $stmt = $conn->prepare("INSERT INTO rutas (chofer, auxiliar, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, ?, 0, 'programada')");
                     $origen = 'Pendiente';
-                    $stmt->bind_param("sssss", $chofer['nombre_chofer'], $auxiliar_nombre, $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
+                    $stmt->bind_param("ssssss", $chofer['nombre_chofer'], $auxiliar_nombre, $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
                     $stmt->execute();
                     $ruta_id = $conn->insert_id;
                     $stmt->close();
@@ -1324,7 +1326,7 @@ document.getElementById('btnDetalleSemana')?.addEventListener('click', function(
                         <td style="white-space:nowrap; text-align:right;">$${v.gasto}</td>
                     </tr>`;
                 });
-                html += '</tbody>mtable></div>';
+                html += '</tbody></table></div>';
             } else {
                 html += '<p>No hay viajes en esta semana</p>';
             }
