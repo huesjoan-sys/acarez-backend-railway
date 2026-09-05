@@ -63,8 +63,8 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     header('Content-Type: application/json');
     $ruta_id = intval($_GET['ruta_id']);
     
-    // Obtener datos generales de la ruta
-    $ruta_sql = "SELECT * FROM rutas WHERE id = $ruta_id";
+    // Obtener datos generales de la ruta (incluyendo fotos de odómetro)
+    $ruta_sql = "SELECT *, foto_inicio, foto_fin FROM rutas WHERE id = $ruta_id";
     $ruta_result = $conn->query($ruta_sql);
     $ruta = $ruta_result->fetch_assoc();
     
@@ -1176,6 +1176,16 @@ function verDetalleRuta(id) {
             const paradas = data.paradas || [];
             const gastos = data.gastos || [];
             
+            // Función auxiliar para formatear la ruta de la imagen
+            const prepararSrc = (img) => {
+                if (!img || img.trim() === '') return '';
+                if (!img.startsWith('/') && !img.startsWith('http')) return '/' + img;
+                return img;
+            };
+
+            const fotoInicioSrc = prepararSrc(r.foto_inicio);
+            const fotoFinSrc = prepararSrc(r.foto_fin);
+
             let paradasHtml = paradas.length === 0 ? '<p>No hay paradas registradas</p>' : '';
             
             paradas.forEach((p) => {
@@ -1192,10 +1202,7 @@ function verDetalleRuta(id) {
                         gastosDetalleHtml += `<div style="margin-bottom: 6px;">• <strong>${gp.concepto}:</strong> $${parseFloat(gp.monto).toFixed(2)}`;
                         
                         if (gp.foto && gp.foto.trim() !== '') {
-                            let fotoSrc = gp.foto;
-                            if (!fotoSrc.startsWith('/') && !fotoSrc.startsWith('http')) {
-                                fotoSrc = '/' + fotoSrc;
-                            }
+                            let fotoSrc = prepararSrc(gp.foto);
                             gastosDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #ddd;" onclick="verImagenGrande('${fotoSrc}')" title="Ver comprobante"></div>`;
                         }
                         
@@ -1233,8 +1240,18 @@ function verDetalleRuta(id) {
                     <p><strong>Vehículo:</strong> ${r.placas} | ${r.no_economico}</p>
                     <p><strong>Origen:</strong> ${r.origen}</p>
                     <p><strong>Destino Final:</strong> ${r.destino_final || 'Pendiente'}</p>
-                    <p><strong>Km total:</strong> ${r.km_total || 0} km</p>
-                    <p><strong>Total de Gastos de la Ruta:</strong> <span style="color:green; font-weight:bold;">$${parseFloat(r.total_gastos || 0).toFixed(2)}</span></p>
+                    
+                    <div style="display:flex; gap:15px; align-items:center; margin-top:8px;">
+                        <p><strong>Km Inicial:</strong> ${r.km_inicial || 0} km</p>
+                        ${fotoInicioSrc ? `<button class="btn btn-info btn-pequeno" onclick="verImagenGrande('${fotoInicioSrc}')">📷 Foto Odómetro Inicial</button>` : '<span style="color:#aaa; font-size:12px;">(Sin foto inicial)</span>'}
+                    </div>
+
+                    <div style="display:flex; gap:15px; align-items:center; margin-top:6px;">
+                        <p><strong>Km Final:</strong> ${r.km_final || 0} km (Total: ${r.km_total || 0} km)</p>
+                        ${fotoFinSrc ? `<button class="btn btn-info btn-pequeno" onclick="verImagenGrande('${fotoFinSrc}')">📷 Foto Odómetro Final</button>` : '<span style="color:#aaa; font-size:12px;">(Sin foto final)</span>'}
+                    </div>
+
+                    <p style="margin-top:10px;"><strong>Total de Gastos de la Ruta:</strong> <span style="color:green; font-weight:bold;">$${parseFloat(r.total_gastos || 0).toFixed(2)}</span></p>
                     <p><strong>Estatus General:</strong> <span class="badge badge-${r.estatus}">${r.estatus}</span></p>
                 </div>
                 <h3 style="margin-top:15px; margin-bottom:10px;">📍 Destinos y Gastos por Parada</h3>
