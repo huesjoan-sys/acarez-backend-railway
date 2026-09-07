@@ -745,7 +745,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 <div style="width: 100%; margin-top: 15px;">
                     <p><strong>Selecciona los destinos para esta ruta:</strong> 
-                    <span style="color:#666; font-size:12px;">(marca los clientes que debe visitar el chofer)</span></p>
+                    <span style="color:#666; font-size:12px;">(marca los clientes en el orden que debe visitarlos el chofer)</span></p>
                     <div class="seleccion-destinos">
                         <?php if($destinos->num_rows == 0): ?>
                             <p style="color: #999; text-align:center; padding:20px;">No hay destinos registrados. Ve a la sección <strong>Destinos</strong> para agregar.</p>
@@ -760,7 +760,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <?php endif; ?>
                     </div>
                     <div style="margin-top:10px; font-size:12px; color:#666;">
-                        <span id="contadorDestinos">0</span> destinos seleccionados
+                        <span id="contadorDestinos">0</span> destinos seleccionados en orden de visita
                     </div>
                 </div>
             </form>
@@ -1033,13 +1033,34 @@ function girarLogoInferior() {
     setTimeout(() => logo.classList.remove('girar-logo'), 5000);
 }
 
-document.addEventListener('DOMContentLoaded', () => girarLogoInferior());
+// ========================================================
+// SCRIPT INTEGRADO: Contador y Orden visual de destinos
+// ========================================================
+document.addEventListener('DOMContentLoaded', () => {
+    girarLogoInferior();
 
-document.querySelectorAll('input[name="destinos[]"]').forEach(function(checkbox) {
-    checkbox.addEventListener('change', function() {
-        const contador = document.querySelectorAll('input[name="destinos[]"]:checked').length;
-        document.getElementById('contadorDestinos').textContent = contador;
-    });
+    const contenedor = document.querySelector('.seleccion-destinos');
+    if (contenedor) {
+        let ordenClicks = [];
+        
+        contenedor.querySelectorAll('input[type="checkbox"]').forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                // 1. Lógica del contador
+                const contador = document.querySelectorAll('input[name="destinos[]"]:checked').length;
+                document.getElementById('contadorDestinos').textContent = contador;
+
+                // 2. Lógica del reordenamiento visual y de envío
+                if (this.checked) {
+                    ordenClicks.push(this.value);
+                    this.closest('label').style.background = '#e8f5e9'; // Resalta en verde claro
+                    contenedor.appendChild(this.closest('label')); // Mueve la opción al final del contenedor
+                } else {
+                    ordenClicks = ordenClicks.filter(val => val !== this.value);
+                    this.closest('label').style.background = 'transparent'; // Quita el resaltado
+                }
+            });
+        });
+    }
 });
 
 function exportarExcel() {
