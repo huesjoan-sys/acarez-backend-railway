@@ -21,12 +21,11 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
     $fecha_inicio = date('Y-m-d', strtotime($year . 'W' . $week . '1'));
     $fecha_fin = date('Y-m-d', strtotime($year . 'W' . $week . '7'));
     
+    // 🟢 Corrección con subconsulta para evitar multiplicación de gastos
     $sql = "SELECT r.id, r.fecha_inicio AS fecha, r.chofer, r.placas, r.origen, r.km_inicial, r.km_final, r.km_total,
-                   COALESCE(SUM(g.monto), 0) AS total_general 
+                   (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general 
             FROM rutas r 
-            LEFT JOIN gastos g ON r.id = g.ruta_id
             WHERE DATE(r.fecha_inicio) BETWEEN '$fecha_inicio' AND '$fecha_fin' 
-            GROUP BY r.id
             ORDER BY r.fecha_inicio";
     $result = $conn->query($sql);
     
@@ -70,7 +69,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     $ruta_result = $conn->query($ruta_sql);
     $ruta = $ruta_result->fetch_assoc();
     
-    // Calcular el total de gastos desde la tabla 'gastos'
+    // Calcular el total de gastos desde la tabla 'gastos'[cite: 4]
     $sql_gastos_suma = "SELECT COALESCE(SUM(monto), 0) AS total_gastos FROM gastos WHERE ruta_id = $ruta_id";
     $res_gastos_suma = $conn->query($sql_gastos_suma);
     $row_suma = $res_gastos_suma->fetch_assoc();
@@ -80,7 +79,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         $ruta['total_gastos'] = $total_gastos;
     }
     
-    // Obtener la lista desglosada de los gastos con su parada_id asociado
+    // Obtener la lista desglosada de los gastos con su parada_id asociado[cite: 4]
     $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, foto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
     $res_lista_gastos = $conn->query($sql_lista_gastos);
     $gastos = [];
@@ -88,7 +87,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         $gastos[] = $g;
     }
     
-    // Obtener las paradas de la ruta
+    // Obtener las paradas de la ruta[cite: 4]
     $paradas_sql = "SELECT p.*, d.razon_social, d.sucursal, d.direccion 
                     FROM paradas p 
                     LEFT JOIN destinos d ON p.destino_id = d.id 
@@ -111,12 +110,11 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
 }
 
 // ==============================================
-// 3. FUNCIONES DE APOYO (Migradas a modelo relacional 'rutas')
+// 3. FUNCIONES DE APOYO (Con subconsultas exactas)
 // ==============================================
 function obtenerReportes($conn, $filtros = []) {
     $where = "1=1";
     
-    // Filtro temporal por semana o rango de fechas
     if (!empty($filtros['semana'])) {
         $year = substr($filtros['semana'], 0, 4);
         $week = substr($filtros['semana'], 6);
@@ -127,19 +125,17 @@ function obtenerReportes($conn, $filtros = []) {
         $where .= " AND DATE(r.fecha_inicio) BETWEEN '{$filtros['fecha_inicio']}' AND '{$filtros['fecha_fin']}'";
     }
 
-    // Filtro secundario por chofer
     if (!empty($filtros['chofer'])) {
         $choferEsc = $conn->real_escape_string($filtros['chofer']);
         $where .= " AND r.chofer = '$choferEsc'";
     }
 
-    $sql = "SELECT r.*, COALESCE(SUM(g.monto), 0) AS total_general,
-                   COUNT(DISTINCT p.id) AS total_paradas
+    // 🟢 CORRECCIÓN: Uso de subconsultas para evitar duplicar montos por producto cartesiano
+    $sql = "SELECT r.*, 
+                   (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general,
+                   (SELECT COUNT(p.id) FROM paradas p WHERE p.ruta_id = r.id) AS total_paradas
             FROM rutas r 
-            LEFT JOIN gastos g ON r.id = g.ruta_id 
-            LEFT JOIN paradas p ON r.id = p.ruta_id 
             WHERE $where 
-            GROUP BY r.id 
             ORDER BY r.fecha_inicio DESC";
             
     return $conn->query($sql);
@@ -162,11 +158,11 @@ function obtenerRutas($conn, $filtros = []) {
         $where .= " AND r.estatus = '" . $conn->real_escape_string($filtros['estatus']) . "'";
     }
     
-    $sql = "SELECT r.*, COALESCE(SUM(g.monto), 0) AS total_gastos 
+    // 🟢 Corrección de sumatoria por subconsulta
+    $sql = "SELECT r.*, 
+                   (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_gastos 
             FROM rutas r 
-            LEFT JOIN gastos g ON g.ruta_id = r.id 
             WHERE $where 
-            GROUP BY r.id 
             ORDER BY r.id DESC";
             
     return $conn->query($sql);
