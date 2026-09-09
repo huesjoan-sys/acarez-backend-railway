@@ -5,7 +5,7 @@
 
 session_start();
 header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
-header('Content-Disposition: attachment; filename="reportes_acarez_' . date('Ymd_His') . '.xls"');
+header('Content-Disposition: attachment; filename="reporte_rutas_acarez_' . date('Ymd_His') . '.xls"');
 header('Cache-Control: max-age=0');
 
 require_once 'conexion.php';
@@ -22,18 +22,23 @@ if (!empty($semana)) {
     $week = substr($semana, 6);
     $f_inicio = date('Y-m-d', strtotime($year . 'W' . $week . '1'));
     $f_fin = date('Y-m-d', strtotime($year . 'W' . $week . '7'));
-    $where .= " AND DATE(fecha) BETWEEN '$f_inicio' AND '$f_fin'";
+    $where .= " AND DATE(r.fecha_inicio) BETWEEN '$f_inicio' AND '$f_fin'";
 } elseif (!empty($fecha_inicio) && !empty($fecha_fin)) {
-    $where .= " AND DATE(fecha) BETWEEN '$fecha_inicio' AND '$fecha_fin'";
+    $where .= " AND DATE(r.fecha_inicio) BETWEEN '$fecha_inicio' AND '$fecha_fin'";
 }
 if (!empty($choferFiltro)) {
     $choferEsc = $conn->real_escape_string($choferFiltro);
-    $where .= " AND chofer = '$choferEsc'";
+    $where .= " AND r.chofer = '$choferEsc'";
 }
 
-$sql = "SELECT * FROM viajes WHERE $where ORDER BY id DESC";
-$result = $conn->query($sql);
+$sql = "SELECT r.*, 
+               (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general,
+               (SELECT COUNT(p.id) FROM paradas p WHERE p.ruta_id = r.id) AS total_paradas
+        FROM rutas r 
+        WHERE $where 
+        ORDER BY r.fecha_inicio DESC";
 
+$result = $conn->query($sql);
 if (!$result) {
     echo "Error en la consulta: " . $conn->error;
     exit;
@@ -51,41 +56,27 @@ if (!$result) {
         table { border-collapse: collapse; width: 100%; }
         th { background-color: #4A148C; color: #FFFFFF; font-weight: bold; padding: 8px 6px; border: 1px solid #3C096C; text-align: center; }
         td { padding: 6px 4px; border: 1px solid #ddd; text-align: left; }
-        .numero { text-align: right; }
-        .moneda { text-align: right; font-weight: 500; }
         .fila-alternativa { background-color: #f9f9f9; }
     </style>
 </head>
 <body>
-    <h1>📋 Reporte de Viajes - ACAREZ LOGÍSTICA</h1>
+    <h1>📋 Reporte de Rutas y Gastos - ACAREZ LOGÍSTICA</h1>
     <div class="fecha">Generado: <?= date('d/m/Y H:i:s') ?></div>
     <table>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>FECHA</th>
-                <th>HORA</th>
+                <th>ID RUTA</th>
+                <th>FECHA INICIO</th>
                 <th>CHOFER</th>
+                <th>AUXILIAR</th>
                 <th>PLACAS</th>
-                <th>ORIGEN IDA</th>
-                <th>DESTINO IDA</th>
-                <th>ORIGEN REGRESO</th>
-                <th>DESTINO REGRESO</th>
-                <th>DIRECCIÓN</th>
+                <th>NO. ECONÓMICO</th>
+                <th>ORIGEN</th>
                 <th>KM INICIAL</th>
                 <th>KM FINAL</th>
                 <th>KM TOTAL</th>
-                <th>TOTAL IDA</th>
-                <th>TOTAL REGRESO</th>
-                <th>TOTAL GENERAL</th>
-                <th>HOTEL IDA</th>
-                <th>HOTEL REG</th>
-                <th>CASETA IDA</th>
-                <th>CASETA REG</th>
-                <th>COMIDA IDA</th>
-                <th>COMIDA REG</th>
-                <th>ESTAC. IDA</th>
-                <th>ESTAC. REG</th>
+                <th>TOTAL GASTOS</th>
+                <th>ESTATUS</th>
             </tr>
         </thead>
         <tbody>
@@ -94,46 +85,32 @@ $cont = 0;
 while ($row = $result->fetch_assoc()) {
     $cont++;
     $clase = ($cont % 2 == 0) ? 'fila-alternativa' : '';
-    $fecha = date('d/m/Y', strtotime($row['fecha']));
-    $hora = date('H:i:s', strtotime($row['fecha']));
+    $fecha = date('d/m/Y H:i', strtotime($row['fecha_inicio']));
     
     $chofer = htmlspecialchars($row['chofer'] ?? '');
+    $auxiliar = htmlspecialchars($row['auxiliar'] ?? 'Sin auxiliar');
     $placas = htmlspecialchars($row['placas'] ?? '');
-    $origen_ida = htmlspecialchars($row['origen_ida'] ?? '');
-    $destino_ida = htmlspecialchars($row['destino_ida'] ?? '');
-    $origen_regreso = htmlspecialchars($row['origen_regreso'] ?? '');
-    $destino_regreso = htmlspecialchars($row['destino_regreso'] ?? '');
-    $direccion = htmlspecialchars($row['direccion_actual'] ?? '');
+    $no_eco = htmlspecialchars($row['no_economico'] ?? '');
+    $origen = htmlspecialchars($row['origen'] ?? '');
     
     $km_inicial = number_format($row['km_inicial'] ?? 0, 0, '.', '');
     $km_final   = number_format($row['km_final'] ?? 0, 0, '.', '');
     $km_total   = number_format($row['km_total'] ?? 0, 0, '.', '');
+    $total_gen  = number_format($row['total_general'] ?? 0, 2);
 ?>
             <tr class="<?= $clase ?>">
-                <td style="text-align:center;"><?= $row['id'] ?></td>
+                <td style="text-align:center;">#<?= $row['id'] ?></td>
                 <td><?= $fecha ?></td>
-                <td><?= $hora ?></td>
                 <td><?= $chofer ?></td>
+                <td><?= $auxiliar ?></td>
                 <td><?= $placas ?></td>
-                <td><?= $origen_ida ?></td>
-                <td><?= $destino_ida ?></td>
-                <td><?= $origen_regreso ?></td>
-                <td><?= $destino_regreso ?></td>
-                <td><?= $direccion ?></td>
+                <td><?= $no_eco ?></td>
+                <td><?= $origen ?></td>
                 <td style="text-align:center;"><?= $km_inicial ?></td>
                 <td style="text-align:center;"><?= $km_final ?></td>
-                <td style="text-align:center; font-weight:bold;"><?= $km_total ?></td>
-                <td style="text-align:right;">$<?= number_format($row['total_ida'] ?? 0, 2) ?></td>
-                <td style="text-align:right;">$<?= number_format($row['total_regreso'] ?? 0, 2) ?></td>
-                <td style="text-align:right; font-weight:bold; color:#4A148C;">$<?= number_format($row['total_general'] ?? 0, 2) ?></td>
-                <td style="text-align:right;">$<?= number_format($row['gasto_hotel_ida'] ?? 0, 2) ?></td>
-                <td style="text-align:right;">$<?= number_format($row['gasto_hotel_reg'] ?? 0, 2) ?></td>
-                <td style="text-align:right;">$<?= number_format($row['gasto_caseta_ida'] ?? 0, 2) ?></td>
-                <td style="text-align:right;">$<?= number_format($row['gasto_caseta_reg'] ?? 0, 2) ?></td>
-                <td style="text-align:right;">$<?= number_format($row['gasto_comida_ida'] ?? 0, 2) ?></td>
-                <td style="text-align:right;">$<?= number_format($row['gasto_comida_reg'] ?? 0, 2) ?></td>
-                <td style="text-align:right;">$<?= number_format($row['gasto_estac_ida'] ?? 0, 2) ?></td>
-                <td style="text-align:right;">$<?= number_format($row['gasto_estac_reg'] ?? 0, 2) ?></td>
+                <td style="text-align:center; font-weight:bold;"><?= $km_total ?> km</td>
+                <td style="text-align:right; font-weight:bold; color:#4A148C;">$<?= $total_gen ?></td>
+                <td style="text-align:center;"><?= ucfirst($row['estatus']) ?></td>
             </tr>
 <?php } ?>
         </tbody>
