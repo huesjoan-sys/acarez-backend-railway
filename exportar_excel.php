@@ -1,8 +1,4 @@
 <?php
-// ============================================
-// exportar_excel.php - Reporte Excel Estilizado
-// ============================================
-
 session_start();
 header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
 header('Content-Disposition: attachment; filename="reporte_rutas_acarez_' . date('Ymd_His') . '.xls"');
@@ -10,7 +6,6 @@ header('Cache-Control: max-age=0');
 
 require_once 'conexion.php';
 
-// Obtener filtros con sincronización idéntica al panel principal
 $semana = $_GET['semana'] ?? '';
 $fecha_inicio = $_GET['fecha_inicio'] ?? '';
 $fecha_fin = $_GET['fecha_fin'] ?? '';
@@ -32,8 +27,7 @@ if (!empty($choferFiltro)) {
 }
 
 $sql = "SELECT r.*, 
-               (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general,
-               (SELECT COUNT(p.id) FROM paradas p WHERE p.ruta_id = r.id) AS total_paradas
+               (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general
         FROM rutas r 
         WHERE $where 
         ORDER BY r.fecha_inicio DESC";
@@ -55,7 +49,7 @@ if (!$result) {
         .fecha { font-size: 12px; color: #666; margin-bottom: 15px; }
         table { border-collapse: collapse; width: 100%; }
         th { background-color: #4A148C; color: #FFFFFF; font-weight: bold; padding: 8px 6px; border: 1px solid #3C096C; text-align: center; }
-        td { padding: 6px 4px; border: 1px solid #ddd; text-align: left; }
+        td { padding: 6px 4px; border: 1px solid #ddd; text-align: left; vertical-align: top; }
         .fila-alternativa { background-color: #f9f9f9; }
     </style>
 </head>
@@ -66,15 +60,16 @@ if (!$result) {
         <thead>
             <tr>
                 <th>ID RUTA</th>
-                <th>FECHA INICIO</th>
+                <th>FECHA</th>
+                <th>HORA</th>
                 <th>CHOFER</th>
                 <th>AUXILIAR</th>
-                <th>PLACAS</th>
-                <th>NO. ECONÓMICO</th>
+                <th>VEHÍCULO</th>
                 <th>ORIGEN</th>
                 <th>KM INICIAL</th>
                 <th>KM FINAL</th>
                 <th>KM TOTAL</th>
+                <th>DETALLE GASTOS</th>
                 <th>TOTAL GASTOS</th>
                 <th>ESTATUS</th>
             </tr>
@@ -85,12 +80,22 @@ $cont = 0;
 while ($row = $result->fetch_assoc()) {
     $cont++;
     $clase = ($cont % 2 == 0) ? 'fila-alternativa' : '';
-    $fecha = date('d/m/Y H:i', strtotime($row['fecha_inicio']));
+    $fecha = date('d/m/Y', strtotime($row['fecha_inicio']));
+    $hora = date('H:i', strtotime($row['fecha_inicio']));
     
+    // Obtener gastos
+    $id_ruta = $row['id'];
+    $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
+    $res_gastos = $conn->query($sql_gastos);
+    $detalle_gastos = [];
+    while ($g = $res_gastos->fetch_assoc()) {
+        $detalle_gastos[] = "<b>" . $g['concepto'] . ":</b> $" . number_format($g['total_concepto'], 2);
+    }
+    $texto_gastos = empty($detalle_gastos) ? 'Sin gastos' : implode("<br>", $detalle_gastos);
+
     $chofer = htmlspecialchars($row['chofer'] ?? '');
     $auxiliar = htmlspecialchars($row['auxiliar'] ?? 'Sin auxiliar');
-    $placas = htmlspecialchars($row['placas'] ?? '');
-    $no_eco = htmlspecialchars($row['no_economico'] ?? '');
+    $vehiculo = htmlspecialchars($row['placas'] ?? '') . ' (' . htmlspecialchars($row['no_economico'] ?? '') . ')';
     $origen = htmlspecialchars($row['origen'] ?? '');
     
     $km_inicial = number_format($row['km_inicial'] ?? 0, 0, '.', '');
@@ -100,15 +105,16 @@ while ($row = $result->fetch_assoc()) {
 ?>
             <tr class="<?= $clase ?>">
                 <td style="text-align:center;">#<?= $row['id'] ?></td>
-                <td><?= $fecha ?></td>
+                <td style="text-align:center;"><?= $fecha ?></td>
+                <td style="text-align:center;"><?= $hora ?></td>
                 <td><?= $chofer ?></td>
                 <td><?= $auxiliar ?></td>
-                <td><?= $placas ?></td>
-                <td><?= $no_eco ?></td>
+                <td style="text-align:center;"><?= $vehiculo ?></td>
                 <td><?= $origen ?></td>
                 <td style="text-align:center;"><?= $km_inicial ?></td>
                 <td style="text-align:center;"><?= $km_final ?></td>
                 <td style="text-align:center; font-weight:bold;"><?= $km_total ?> km</td>
+                <td><?= $texto_gastos ?></td>
                 <td style="text-align:right; font-weight:bold; color:#4A148C;">$<?= $total_gen ?></td>
                 <td style="text-align:center;"><?= ucfirst($row['estatus']) ?></td>
             </tr>

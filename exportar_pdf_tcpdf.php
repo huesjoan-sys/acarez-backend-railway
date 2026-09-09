@@ -1,14 +1,9 @@
 <?php
-// ============================================
-// exportar_pdf_tcpdf.php - Reporte PDF (Landscape) con Logo
-// ============================================
-
 date_default_timezone_set('America/Mexico_City');
 
 require_once __DIR__ . '/tcpdf/tcpdf.php';
 require_once __DIR__ . '/conexion.php';
 
-// ========== OBTENER FILTROS SINCRONIZADOS ==========
 $semana = $_GET['semana'] ?? '';
 $fecha_inicio = $_GET['fecha_inicio'] ?? '';
 $fecha_fin = $_GET['fecha_fin'] ?? '';
@@ -30,8 +25,7 @@ if (!empty($choferFiltro)) {
 }
 
 $sql = "SELECT r.*, 
-               (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general,
-               (SELECT COUNT(p.id) FROM paradas p WHERE p.ruta_id = r.id) AS total_paradas
+               (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general
         FROM rutas r 
         WHERE $where 
         ORDER BY r.fecha_inicio DESC";
@@ -41,12 +35,10 @@ if (!$result) {
     die("Error en la consulta: " . $conn->error);
 }
 
-// ========== VARIABLES PARA RESUMEN ==========
 $total_viajes = 0;
 $total_km = 0;
 $total_gastos = 0;
 
-// ========== CONSTRUIR HTML ==========
 $html = '<h1 style="text-align:center; color:#4A148C; font-size:20px; margin-top:0; margin-bottom:2px;">Reporte de Rutas y Gastos</h1>
 <p style="text-align:center; font-size:10px; color:#666; margin-top:-3px;">Generado: ' . date('d/m/Y H:i:s') . '</p>';
 
@@ -62,16 +54,21 @@ if (!empty($semana)) {
     $html .= '<p style="font-size:9px; text-align:center;"><strong>Filtro:</strong> Todos los registros</p>';
 }
 
-$html .= '<table border="1" cellpadding="4" style="font-size:9px; border-collapse:collapse; width:100%;">
+// Tabla con anchos estrictos (suman exactamente 100%) para evitar desalineación
+$html .= '<table border="1" cellpadding="3" style="font-size:8px; border-collapse:collapse; width:100%;">
 <thead>
     <tr style="background-color:#4A148C; color:#FFFFFF; font-weight:bold;">
-        <th style="text-align:center;" width="8%">ID Ruta</th>
-        <th style="text-align:center;" width="16%">Fecha Inicio</th>
-        <th style="text-align:center;" width="22%">Chofer</th>
-        <th style="text-align:center;" width="15%">Placas / Eco</th>
-        <th style="text-align:center;" width="12%">Km Total</th>
-        <th style="text-align:center;" width="15%">Total Gastos</th>
-        <th style="text-align:center;" width="12%">Estatus</th>
+        <th width="5%" align="center">ID</th>
+        <th width="7%" align="center">Fecha</th>
+        <th width="5%" align="center">Hora</th>
+        <th width="12%" align="left">Chofer</th>
+        <th width="9%" align="center">Vehículo</th>
+        <th width="12%" align="left">Origen</th>
+        <th width="6%" align="center">Km Fin</th>
+        <th width="7%" align="center">Km Tot</th>
+        <th width="22%" align="left">Detalle Gastos</th>
+        <th width="8%" align="right">Total</th>
+        <th width="7%" align="center">Estatus</th>
     </tr>
 </thead>
 <tbody>';
@@ -79,19 +76,35 @@ $html .= '<table border="1" cellpadding="4" style="font-size:9px; border-collaps
 while ($row = $result->fetch_assoc()) {
     $total_viajes++;
     $km_recorrido = floatval($row['km_total'] ?? 0);
+    $km_final = floatval($row['km_final'] ?? 0);
     $total_km += $km_recorrido;
     $total_gastos += floatval($row['total_general']);
 
-    $fecha = date('d/m/Y H:i', strtotime($row['fecha_inicio']));
+    $fecha = date('d/m/Y', strtotime($row['fecha_inicio']));
+    $hora = date('H:i', strtotime($row['fecha_inicio']));
+    
+    // Obtener gastos
+    $id_ruta = $row['id'];
+    $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
+    $res_gastos = $conn->query($sql_gastos);
+    $detalle_gastos = [];
+    while ($g = $res_gastos->fetch_assoc()) {
+        $detalle_gastos[] = "<b>" . $g['concepto'] . ":</b> $" . number_format($g['total_concepto'], 2);
+    }
+    $texto_gastos = empty($detalle_gastos) ? 'Sin gastos' : implode("<br>", $detalle_gastos);
 
     $html .= '<tr>
-        <td style="text-align:center;"><strong>#' . $row['id'] . '</strong></td>
-        <td style="text-align:center;">' . $fecha . '</td>
-        <td>' . htmlspecialchars($row['chofer']) . '</td>
-        <td style="text-align:center;">' . htmlspecialchars($row['placas']) . ' (' . htmlspecialchars($row['no_economico']) . ')</td>
-        <td style="text-align:center;">' . number_format($km_recorrido, 0) . ' km</td>
-        <td style="text-align:right; font-weight:bold; color:#4A148C;">$' . number_format($row['total_general'], 2) . '</td>
-        <td style="text-align:center;">' . ucfirst($row['estatus']) . '</td>
+        <td width="5%" align="center"><strong>#' . $row['id'] . '</strong></td>
+        <td width="7%" align="center">' . $fecha . '</td>
+        <td width="5%" align="center">' . $hora . '</td>
+        <td width="12%" align="left">' . htmlspecialchars($row['chofer']) . '</td>
+        <td width="9%" align="center">' . htmlspecialchars($row['placas']) . '</td>
+        <td width="12%" align="left">' . htmlspecialchars($row['origen']) . '</td>
+        <td width="6%" align="center">' . number_format($km_final, 0) . '</td>
+        <td width="7%" align="center"><strong>' . number_format($km_recorrido, 0) . '</strong></td>
+        <td width="22%" align="left">' . $texto_gastos . '</td>
+        <td width="8%" align="right" style="font-weight:bold; color:#4A148C;">$' . number_format($row['total_general'], 2) . '</td>
+        <td width="7%" align="center">' . ucfirst($row['estatus']) . '</td>
     </tr>';
 }
 
@@ -99,9 +112,9 @@ $html .= '</tbody></table>';
 
 $html .= '<h3 style="text-align:center; color:#4A148C; font-size:11px; margin-top:15px;">Resumen del Periodo</h3>
 <table border="0" cellpadding="3" style="margin:0 auto; font-size:10px;">
-    <tr><td style="font-weight:bold;">Total de rutas/viajes:</td><td>' . $total_viajes . '</td></tr>
-    <tr><td style="font-weight:bold;">Total kilómetros recorridos:</td><td>' . number_format($total_km, 0) . ' km</td></tr>
-    <tr><td style="font-weight:bold; color:#4A148C;">Gran total gastos comprobados:</td><td style="font-weight:bold; color:#4A148C;">$' . number_format($total_gastos, 2) . '</td></tr>
+    <tr><td align="right" style="font-weight:bold;">Total de rutas/viajes:</td><td align="left">' . $total_viajes . '</td></tr>
+    <tr><td align="right" style="font-weight:bold;">Total kilómetros recorridos:</td><td align="left">' . number_format($total_km, 0) . ' km</td></tr>
+    <tr><td align="right" style="font-weight:bold; color:#4A148C;">Gran total gastos comprobados:</td><td align="left" style="font-weight:bold; color:#4A148C;">$' . number_format($total_gastos, 2) . '</td></tr>
 </table>';
 
 $html .= '<p style="text-align:center; font-size:8px; color:#999; margin-top:15px; border-top:1px solid #ddd; padding-top:5px;">

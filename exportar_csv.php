@@ -2,31 +2,40 @@
 ob_start();
 
 header('Content-Type: text/csv; charset=UTF-8');
-header('Content-Disposition: attachment; filename="reportes_acarez.csv"');
+header('Content-Disposition: attachment; filename="reportes_acarez_' . date('Ymd_His') . '.csv"');
 header('Cache-Control: max-age=0');
+
+// Agregar BOM para que Excel reconozca los caracteres especiales en el CSV automáticamente
+echo "\xEF\xBB\xBF"; 
 
 require_once 'conexion.php';
 
-// Obtener filtros
 $semana = $_GET['semana'] ?? '';
 $fecha_inicio = $_GET['fecha_inicio'] ?? '';
 $fecha_fin = $_GET['fecha_fin'] ?? '';
-$todo = isset($_GET['todo']);
+$choferFiltro = $_GET['chofer'] ?? '';
 
-$where = "";
-if (!$todo) {
-    if (!empty($semana)) {
-        $year = substr($semana, 0, 4);
-        $week = substr($semana, 6);
-        $fecha_inicio = date('Y-m-d', strtotime($year . 'W' . $week . '1'));
-        $fecha_fin = date('Y-m-d', strtotime($year . 'W' . $week . '7'));
-        $where = "WHERE DATE(fecha) BETWEEN '$fecha_inicio' AND '$fecha_fin'";
-    } elseif (!empty($fecha_inicio) && !empty($fecha_fin)) {
-        $where = "WHERE DATE(fecha) BETWEEN '$fecha_inicio' AND '$fecha_fin'";
-    }
+$where = "1=1";
+if (!empty($semana)) {
+    $year = substr($semana, 0, 4);
+    $week = substr($semana, 6);
+    $f_inicio = date('Y-m-d', strtotime($year . 'W' . $week . '1'));
+    $f_fin = date('Y-m-d', strtotime($year . 'W' . $week . '7'));
+    $where .= " AND DATE(r.fecha_inicio) BETWEEN '$f_inicio' AND '$f_fin'";
+} elseif (!empty($fecha_inicio) && !empty($fecha_fin)) {
+    $where .= " AND DATE(r.fecha_inicio) BETWEEN '$fecha_inicio' AND '$fecha_fin'";
+}
+if (!empty($choferFiltro)) {
+    $choferEsc = $conn->real_escape_string($choferFiltro);
+    $where .= " AND r.chofer = '$choferEsc'";
 }
 
-$sql = "SELECT * FROM viajes $where ORDER BY id DESC";
+$sql = "SELECT r.*, 
+               (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general
+        FROM rutas r 
+        WHERE $where 
+        ORDER BY r.fecha_inicio DESC";
+
 $result = $conn->query($sql);
 
 if (!$result) {
@@ -34,58 +43,49 @@ if (!$result) {
     exit;
 }
 
-// Abrir la salida
 $output = fopen('php://output', 'w');
 
-// Encabezados CSV (con todas las columnas)
 fputcsv($output, [
-    'ID', 'FECHA', 'HORA', 'CHOFER', 'PLACAS', 'NO. ECONÓMICO',
-    'ORIGEN IDA', 'DESTINO IDA', 'ORIGEN REGRESO', 'DESTINO REGRESO',
-    'KM INICIAL', 'KM FINAL', 'KM TOTAL',
-    'TOTAL IDA', 'TOTAL REGRESO', 'TOTAL GENERAL',
-    'HOTEL IDA', 'HOTEL REG', 'CASETA IDA', 'CASETA REG',
-    'COMIDA IDA', 'COMIDA REG', 'ESTAC. IDA', 'ESTAC. REG'
+    'ID RUTA', 'FECHA', 'HORA', 'CHOFER', 'AUXILIAR', 'PLACAS', 'NO. ECONOMICO',
+    'ORIGEN', 'KM INICIAL', 'KM FINAL', 'KM RECORRIDO', 
+    'DETALLE DE GASTOS', 'TOTAL GASTOS', 'ESTATUS'
 ]);
 
 while ($row = $result->fetch_assoc()) {
-    $fecha = date('d/m/Y', strtotime($row['fecha']));
-    $hora = date('H:i:s', strtotime($row['fecha']));
+    $fecha = date('d/m/Y', strtotime($row['fecha_inicio']));
+    $hora = date('H:i:s', strtotime($row['fecha_inicio']));
     
-    // Limpiar caracteres especiales para CSV
+    // Obtener desglose de gastos para esta ruta
+    $id_ruta = $row['id'];
+    $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
+    $res_gastos = $conn->query($sql_gastos);
+    $detalle_gastos = [];
+    while ($g = $res_gastos->fetch_assoc()) {
+        $detalle_gastos[] = $g['concepto'] . ': $' . number_format($g['total_concepto'], 2);
+    }
+    $texto_gastos = empty($detalle_gastos) ? 'Sin gastos' : implode(" | ", $detalle_gastos);
+
     $chofer = str_replace(["\t", "\n", "\r", ","], " ", $row['chofer']);
+    $auxiliar = str_replace(["\t", "\n", "\r", ","], " ", $row['auxiliar'] ?? 'Sin auxiliar');
     $placas = str_replace(["\t", "\n", "\r", ","], " ", $row['placas']);
-    $no_economico = str_replace(["\t", "\n", "\r", ","], " ", $row['no_economico']);
-    $origen_ida = str_replace(["\t", "\n", "\r", ","], " ", $row['origen_ida']);
-    $destino_ida = str_replace(["\t", "\n", "\r", ","], " ", $row['destino_ida']);
-    $origen_regreso = str_replace(["\t", "\n", "\r", ","], " ", $row['origen_regreso']);
-    $destino_regreso = str_replace(["\t", "\n", "\r", ","], " ", $row['destino_regreso']);
-    $direccion = str_replace(["\t", "\n", "\r", ","], " ", $row['direccion_actual']);
+    $no_eco = str_replace(["\t", "\n", "\r", ","], " ", $row['no_economico']);
+    $origen = str_replace(["\t", "\n", "\r", ","], " ", $row['origen']);
     
     fputcsv($output, [
         $row['id'],
         $fecha,
         $hora,
         $chofer,
+        $auxiliar,
         $placas,
-        $no_economico,
-        $origen_ida,
-        $destino_ida,
-        $origen_regreso,
-        $destino_regreso,
+        $no_eco,
+        $origen,
         $row['km_inicial'] ?? 0,
         $row['km_final'] ?? 0,
         $row['km_total'] ?? 0,
-        $row['total_ida'],
-        $row['total_regreso'],
-        $row['total_general'],
-        $row['gasto_hotel_ida'],
-        $row['gasto_hotel_reg'],
-        $row['gasto_caseta_ida'],
-        $row['gasto_caseta_reg'],
-        $row['gasto_comida_ida'],
-        $row['gasto_comida_reg'],
-        $row['gasto_estac_ida'],
-        $row['gasto_estac_reg']
+        $texto_gastos,
+        $row['total_general'] ?? 0,
+        ucfirst($row['estatus'])
     ]);
 }
 
