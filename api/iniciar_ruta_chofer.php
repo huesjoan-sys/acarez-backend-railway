@@ -16,29 +16,35 @@ if ($ruta_id <= 0 || $km_inicial <= 0) {
     exit;
 }
 
-// Verificar que la ruta existe y está programada
-$check = $conn->query("SELECT id FROM rutas WHERE id = $ruta_id AND estatus = 'programada'");
+// Verificar que la ruta existe (permite programada o activa para evitar bloqueos por reintentos de red)
+$check = $conn->query("SELECT id, estatus FROM rutas WHERE id = $ruta_id");
 if ($check->num_rows == 0) {
-    echo json_encode(['success' => false, 'mensaje' => '❌ Ruta no encontrada o ya iniciada']);
+    echo json_encode(['success' => false, 'mensaje' => '❌ Ruta no encontrada']);
     exit;
 }
 
-// Generar la fecha y hora exacta del momento en que el chofer inicia
+$row_ruta = $check->fetch_assoc();
+if ($row_ruta['estatus'] == 'completada' || $row_ruta['estatus'] == 'cancelada') {
+    echo json_encode(['success' => false, 'mensaje' => '❌ La ruta ya está finalizada o cancelada']);
+    exit;
+}
+
+// Generar la fecha y hora exacta del momento en que el chofer inicia la ruta
 $fecha_inicio = date('Y-m-d H:i:s');
 
-// Actualizar la ruta incluyendo la hora real de inicio junto con los demás datos
+// Actualizar la ruta incluyendo la hora real de inicio, kilómetros, foto y estatus activo
 if (!empty($placas) && !empty($no_economico) && !empty($origen_real)) {
     $stmt = $conn->prepare("UPDATE rutas SET placas = ?, no_economico = ?, km_inicial = ?, foto_inicio = ?, origen = ?, estatus = 'activa', fecha_inicio = ? WHERE id = ?");
-    $stmt->bind_param("ssdssisi", $placas, $no_economico, $km_inicial, $foto_inicio, $origen_real, $fecha_inicio, $ruta_id);
+    $stmt->bind_param("ssdsssi", $placas, $no_economico, $km_inicial, $foto_inicio, $origen_real, $fecha_inicio, $ruta_id);
 } elseif (!empty($origen_real)) {
     $stmt = $conn->prepare("UPDATE rutas SET km_inicial = ?, foto_inicio = ?, origen = ?, estatus = 'activa', fecha_inicio = ? WHERE id = ?");
-    $stmt->bind_param("dssisi", $km_inicial, $foto_inicio, $origen_real, $fecha_inicio, $ruta_id);
+    $stmt->bind_param("dsssi", $km_inicial, $foto_inicio, $origen_real, $fecha_inicio, $ruta_id);
 } elseif (!empty($placas) && !empty($no_economico)) {
     $stmt = $conn->prepare("UPDATE rutas SET placas = ?, no_economico = ?, km_inicial = ?, foto_inicio = ?, estatus = 'activa', fecha_inicio = ? WHERE id = ?");
-    $stmt->bind_param("ssdsisi", $placas, $no_economico, $km_inicial, $foto_inicio, $fecha_inicio, $ruta_id);
+    $stmt->bind_param("ssdssi", $placas, $no_economico, $km_inicial, $foto_inicio, $fecha_inicio, $ruta_id);
 } else {
     $stmt = $conn->prepare("UPDATE rutas SET km_inicial = ?, foto_inicio = ?, estatus = 'activa', fecha_inicio = ? WHERE id = ?");
-    $stmt->bind_param("dsisi", $km_inicial, $foto_inicio, $fecha_inicio, $ruta_id);
+    $stmt->bind_param("dssi", $km_inicial, $foto_inicio, $fecha_inicio, $ruta_id);
 }
 
 if ($stmt->execute()) {
@@ -49,7 +55,7 @@ if ($stmt->execute()) {
         'fecha_inicio' => $fecha_inicio
     ]);
 } else {
-    echo json_encode(['success' => false, 'mensaje' => '❌ Error: ' . $stmt->error]);
+    echo json_encode(['success' => false, 'mensaje' => '❌ Error en base de datos: ' . $stmt->error]);
 }
 
 $stmt->close();
