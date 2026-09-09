@@ -5,7 +5,7 @@ header('Content-Type: text/csv; charset=UTF-8');
 header('Content-Disposition: attachment; filename="reporte_rutas_acarez_' . date('Ymd_His') . '.csv"');
 header('Cache-Control: max-age=0');
 
-// BOM para Excel en español
+// BOM para que Excel en celular reconozca acentos
 echo "\xEF\xBB\xBF"; 
 
 require_once 'conexion.php';
@@ -46,17 +46,20 @@ if (!$result) {
 $output = fopen('php://output', 'w');
 
 fputcsv($output, [
-    'ID RUTA', 'FECHA INICIO', 'HORA INICIO (KM INI)', 'FECHA FIN', 'HORA FIN (KM FIN)', 'CHOFER', 'AUXILIAR', 'PLACAS', 'NO. ECONOMICO',
+    'ID RUTA', 'FECHA INICIO', 'HORA INICIO', 'FECHA FIN', 'HORA FIN', 'CHOFER', 'AUXILIAR', 'VEHICULO',
     'ORIGEN', 'KM INICIAL', 'KM FINAL', 'KM RECORRIDO', 
     'DETALLE DE GASTOS', 'TOTAL GASTOS', 'ESTATUS'
 ]);
 
 while ($row = $result->fetch_assoc()) {
+    // Detección inteligente de hora 00:00
     $f_inicio_formato = !empty($row['fecha_inicio']) ? date('d/m/Y', strtotime($row['fecha_inicio'])) : 'N/A';
-    $h_inicio_formato = !empty($row['fecha_inicio']) ? date('H:i:s', strtotime($row['fecha_inicio'])) : 'N/A';
+    $h_ini_cruda = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : '00:00';
+    $h_inicio_formato = ($h_ini_cruda == '00:00') ? 'No registrada' : $h_ini_cruda;
     
     $f_fin_formato = !empty($row['fecha_fin']) ? date('d/m/Y', strtotime($row['fecha_fin'])) : 'Pendiente';
-    $h_fin_formato = !empty($row['fecha_fin']) ? date('H:i:s', strtotime($row['fecha_fin'])) : 'Pendiente';
+    $h_fin_cruda = !empty($row['fecha_fin']) ? date('H:i', strtotime($row['fecha_fin'])) : '00:00';
+    $h_fin_formato = (empty($row['fecha_fin']) || $h_fin_cruda == '00:00') ? 'Pendiente' : $h_fin_cruda;
     
     $id_ruta = $row['id'];
     $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
@@ -69,8 +72,7 @@ while ($row = $result->fetch_assoc()) {
 
     $chofer = str_replace(["\t", "\n", "\r", ","], " ", $row['chofer']);
     $auxiliar = str_replace(["\t", "\n", "\r", ","], " ", $row['auxiliar'] ?? 'Sin auxiliar');
-    $placas = str_replace(["\t", "\n", "\r", ","], " ", $row['placas']);
-    $no_eco = str_replace(["\t", "\n", "\r", ","], " ", $row['no_economico']);
+    $vehiculo = str_replace(["\t", "\n", "\r", ","], " ", ($row['placas'] . ' ' . $row['no_economico']));
     $origen = str_replace(["\t", "\n", "\r", ","], " ", $row['origen']);
     
     fputcsv($output, [
@@ -81,8 +83,7 @@ while ($row = $result->fetch_assoc()) {
         $h_fin_formato,
         $chofer,
         $auxiliar,
-        $placas,
-        $no_eco,
+        $vehiculo,
         $origen,
         $row['km_inicial'] ?? 0,
         $row['km_final'] ?? 0,

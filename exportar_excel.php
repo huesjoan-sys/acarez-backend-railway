@@ -51,6 +51,7 @@ if (!$result) {
         th { background-color: #4A148C; color: #FFFFFF; font-weight: bold; padding: 8px 6px; border: 1px solid #3C096C; text-align: center; }
         td { padding: 6px 4px; border: 1px solid #ddd; text-align: left; vertical-align: top; }
         .fila-alternativa { background-color: #f9f9f9; }
+        .alerta { color: #dc3545; font-style: italic; }
     </style>
 </head>
 <body>
@@ -60,10 +61,10 @@ if (!$result) {
         <thead>
             <tr>
                 <th>ID RUTA</th>
-                <th>FECHA INICIO</th>
-                <th style="background-color:#6A1B9A;">HORA (KM INI)</th>
-                <th>FECHA FIN</th>
-                <th style="background-color:#6A1B9A;">HORA (KM FIN)</th>
+                <th>F. INICIO</th>
+                <th style="background-color:#6A1B9A;">HORA INICIO</th>
+                <th>F. FIN</th>
+                <th style="background-color:#6A1B9A;">HORA FIN</th>
                 <th>CHOFER</th>
                 <th>AUXILIAR</th>
                 <th>VEHÍCULO</th>
@@ -83,11 +84,14 @@ while ($row = $result->fetch_assoc()) {
     $cont++;
     $clase = ($cont % 2 == 0) ? 'fila-alternativa' : '';
     
+    // Detección inteligente de hora
     $f_inicio_formato = !empty($row['fecha_inicio']) ? date('d/m/Y', strtotime($row['fecha_inicio'])) : 'N/A';
-    $h_inicio_formato = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : 'N/A';
+    $h_ini_cruda = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : '00:00';
+    $h_inicio_formato = ($h_ini_cruda == '00:00') ? '<span class="alerta">Sin registrar</span>' : "<strong>$h_ini_cruda</strong>";
     
     $f_fin_formato = !empty($row['fecha_fin']) ? date('d/m/Y', strtotime($row['fecha_fin'])) : 'Pendiente';
-    $h_fin_formato = !empty($row['fecha_fin']) ? date('H:i', strtotime($row['fecha_fin'])) : '--:--';
+    $h_fin_cruda = !empty($row['fecha_fin']) ? date('H:i', strtotime($row['fecha_fin'])) : '00:00';
+    $h_fin_formato = (empty($row['fecha_fin']) || $h_fin_cruda == '00:00') ? '<span class="alerta">Pendiente</span>' : "<strong>$h_fin_cruda</strong>";
     
     $id_ruta = $row['id'];
     $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
@@ -111,9 +115,9 @@ while ($row = $result->fetch_assoc()) {
             <tr class="<?= $clase ?>">
                 <td style="text-align:center;">#<?= $row['id'] ?></td>
                 <td style="text-align:center;"><?= $f_inicio_formato ?></td>
-                <td style="text-align:center; font-weight:bold;"><?= $h_inicio_formato ?></td>
+                <td style="text-align:center;"><?= $h_inicio_formato ?></td>
                 <td style="text-align:center;"><?= $f_fin_formato ?></td>
-                <td style="text-align:center; font-weight:bold;"><?= $h_fin_formato ?></td>
+                <td style="text-align:center;"><?= $h_fin_formato ?></td>
                 <td><?= $chofer ?></td>
                 <td><?= $auxiliar ?></td>
                 <td style="text-align:center;"><?= $vehiculo ?></td>
