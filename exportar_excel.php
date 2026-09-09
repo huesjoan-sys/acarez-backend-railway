@@ -60,8 +60,10 @@ if (!$result) {
         <thead>
             <tr>
                 <th>ID RUTA</th>
-                <th>FECHA</th>
-                <th>HORA</th>
+                <th>FECHA INICIO</th>
+                <th style="background-color:#6A1B9A;">HORA (KM INI)</th>
+                <th>FECHA FIN</th>
+                <th style="background-color:#6A1B9A;">HORA (KM FIN)</th>
                 <th>CHOFER</th>
                 <th>AUXILIAR</th>
                 <th>VEHÍCULO</th>
@@ -80,10 +82,13 @@ $cont = 0;
 while ($row = $result->fetch_assoc()) {
     $cont++;
     $clase = ($cont % 2 == 0) ? 'fila-alternativa' : '';
-    $fecha = date('d/m/Y', strtotime($row['fecha_inicio']));
-    $hora = date('H:i', strtotime($row['fecha_inicio']));
     
-    // Obtener gastos
+    $f_inicio_formato = !empty($row['fecha_inicio']) ? date('d/m/Y', strtotime($row['fecha_inicio'])) : 'N/A';
+    $h_inicio_formato = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : 'N/A';
+    
+    $f_fin_formato = !empty($row['fecha_fin']) ? date('d/m/Y', strtotime($row['fecha_fin'])) : 'Pendiente';
+    $h_fin_formato = !empty($row['fecha_fin']) ? date('H:i', strtotime($row['fecha_fin'])) : '--:--';
+    
     $id_ruta = $row['id'];
     $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
     $res_gastos = $conn->query($sql_gastos);
@@ -105,8 +110,10 @@ while ($row = $result->fetch_assoc()) {
 ?>
             <tr class="<?= $clase ?>">
                 <td style="text-align:center;">#<?= $row['id'] ?></td>
-                <td style="text-align:center;"><?= $fecha ?></td>
-                <td style="text-align:center;"><?= $hora ?></td>
+                <td style="text-align:center;"><?= $f_inicio_formato ?></td>
+                <td style="text-align:center; font-weight:bold;"><?= $h_inicio_formato ?></td>
+                <td style="text-align:center;"><?= $f_fin_formato ?></td>
+                <td style="text-align:center; font-weight:bold;"><?= $h_fin_formato ?></td>
                 <td><?= $chofer ?></td>
                 <td><?= $auxiliar ?></td>
                 <td style="text-align:center;"><?= $vehiculo ?></td>

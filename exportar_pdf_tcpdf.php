@@ -54,20 +54,23 @@ if (!empty($semana)) {
     $html .= '<p style="font-size:9px; text-align:center;"><strong>Filtro:</strong> Todos los registros</p>';
 }
 
-// Tabla con anchos estrictos (suman exactamente 100%) para evitar desalineación
-$html .= '<table border="1" cellpadding="3" style="font-size:8px; border-collapse:collapse; width:100%;">
+// ==== LA TABLA SUMA EXACTAMENTE EL 100% PARA QUE SE VEA PERFECTAMENTE ALINEADA ====
+// 5+6+5+6+5+12+9+6+6+6+20+7+7 = 100%
+$html .= '<table border="1" cellpadding="3" style="font-size:7px; border-collapse:collapse; width:100%;">
 <thead>
     <tr style="background-color:#4A148C; color:#FFFFFF; font-weight:bold;">
         <th width="5%" align="center">ID</th>
-        <th width="7%" align="center">Fecha</th>
-        <th width="5%" align="center">Hora</th>
+        <th width="6%" align="center">F. Inicio</th>
+        <th width="5%" align="center">H. Inic</th>
+        <th width="6%" align="center">F. Fin</th>
+        <th width="5%" align="center">H. Fin</th>
         <th width="12%" align="left">Chofer</th>
         <th width="9%" align="center">Vehículo</th>
-        <th width="12%" align="left">Origen</th>
+        <th width="6%" align="center">Km Inic</th>
         <th width="6%" align="center">Km Fin</th>
-        <th width="7%" align="center">Km Tot</th>
-        <th width="22%" align="left">Detalle Gastos</th>
-        <th width="8%" align="right">Total</th>
+        <th width="6%" align="center">Km Tot</th>
+        <th width="20%" align="left">Detalle Gastos</th>
+        <th width="7%" align="right">Total</th>
         <th width="7%" align="center">Estatus</th>
     </tr>
 </thead>
@@ -75,13 +78,19 @@ $html .= '<table border="1" cellpadding="3" style="font-size:8px; border-collaps
 
 while ($row = $result->fetch_assoc()) {
     $total_viajes++;
-    $km_recorrido = floatval($row['km_total'] ?? 0);
+    $km_inicial = floatval($row['km_inicial'] ?? 0);
     $km_final = floatval($row['km_final'] ?? 0);
+    $km_recorrido = floatval($row['km_total'] ?? 0);
+    
     $total_km += $km_recorrido;
     $total_gastos += floatval($row['total_general']);
 
-    $fecha = date('d/m/Y', strtotime($row['fecha_inicio']));
-    $hora = date('H:i', strtotime($row['fecha_inicio']));
+    // Extraer horas de las fechas de inicio y fin
+    $f_inicio_formato = !empty($row['fecha_inicio']) ? date('d/m/y', strtotime($row['fecha_inicio'])) : 'N/A';
+    $h_inicio_formato = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : 'N/A';
+    
+    $f_fin_formato = !empty($row['fecha_fin']) ? date('d/m/y', strtotime($row['fecha_fin'])) : 'Pend.';
+    $h_fin_formato = !empty($row['fecha_fin']) ? date('H:i', strtotime($row['fecha_fin'])) : '--:--';
     
     // Obtener gastos
     $id_ruta = $row['id'];
@@ -95,15 +104,17 @@ while ($row = $result->fetch_assoc()) {
 
     $html .= '<tr>
         <td width="5%" align="center"><strong>#' . $row['id'] . '</strong></td>
-        <td width="7%" align="center">' . $fecha . '</td>
-        <td width="5%" align="center">' . $hora . '</td>
+        <td width="6%" align="center">' . $f_inicio_formato . '</td>
+        <td width="5%" align="center"><strong>' . $h_inicio_formato . '</strong></td>
+        <td width="6%" align="center">' . $f_fin_formato . '</td>
+        <td width="5%" align="center"><strong>' . $h_fin_formato . '</strong></td>
         <td width="12%" align="left">' . htmlspecialchars($row['chofer']) . '</td>
         <td width="9%" align="center">' . htmlspecialchars($row['placas']) . '</td>
-        <td width="12%" align="left">' . htmlspecialchars($row['origen']) . '</td>
+        <td width="6%" align="center">' . number_format($km_inicial, 0) . '</td>
         <td width="6%" align="center">' . number_format($km_final, 0) . '</td>
-        <td width="7%" align="center"><strong>' . number_format($km_recorrido, 0) . '</strong></td>
-        <td width="22%" align="left">' . $texto_gastos . '</td>
-        <td width="8%" align="right" style="font-weight:bold; color:#4A148C;">$' . number_format($row['total_general'], 2) . '</td>
+        <td width="6%" align="center"><strong>' . number_format($km_recorrido, 0) . '</strong></td>
+        <td width="20%" align="left">' . $texto_gastos . '</td>
+        <td width="7%" align="right" style="font-weight:bold; color:#4A148C;">$' . number_format($row['total_general'], 2) . '</td>
         <td width="7%" align="center">' . ucfirst($row['estatus']) . '</td>
     </tr>';
 }

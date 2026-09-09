@@ -2,10 +2,10 @@
 ob_start();
 
 header('Content-Type: text/csv; charset=UTF-8');
-header('Content-Disposition: attachment; filename="reportes_acarez_' . date('Ymd_His') . '.csv"');
+header('Content-Disposition: attachment; filename="reporte_rutas_acarez_' . date('Ymd_His') . '.csv"');
 header('Cache-Control: max-age=0');
 
-// Agregar BOM para que Excel reconozca los caracteres especiales en el CSV automáticamente
+// BOM para Excel en español
 echo "\xEF\xBB\xBF"; 
 
 require_once 'conexion.php';
@@ -46,16 +46,18 @@ if (!$result) {
 $output = fopen('php://output', 'w');
 
 fputcsv($output, [
-    'ID RUTA', 'FECHA', 'HORA', 'CHOFER', 'AUXILIAR', 'PLACAS', 'NO. ECONOMICO',
+    'ID RUTA', 'FECHA INICIO', 'HORA INICIO (KM INI)', 'FECHA FIN', 'HORA FIN (KM FIN)', 'CHOFER', 'AUXILIAR', 'PLACAS', 'NO. ECONOMICO',
     'ORIGEN', 'KM INICIAL', 'KM FINAL', 'KM RECORRIDO', 
     'DETALLE DE GASTOS', 'TOTAL GASTOS', 'ESTATUS'
 ]);
 
 while ($row = $result->fetch_assoc()) {
-    $fecha = date('d/m/Y', strtotime($row['fecha_inicio']));
-    $hora = date('H:i:s', strtotime($row['fecha_inicio']));
+    $f_inicio_formato = !empty($row['fecha_inicio']) ? date('d/m/Y', strtotime($row['fecha_inicio'])) : 'N/A';
+    $h_inicio_formato = !empty($row['fecha_inicio']) ? date('H:i:s', strtotime($row['fecha_inicio'])) : 'N/A';
     
-    // Obtener desglose de gastos para esta ruta
+    $f_fin_formato = !empty($row['fecha_fin']) ? date('d/m/Y', strtotime($row['fecha_fin'])) : 'Pendiente';
+    $h_fin_formato = !empty($row['fecha_fin']) ? date('H:i:s', strtotime($row['fecha_fin'])) : 'Pendiente';
+    
     $id_ruta = $row['id'];
     $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
     $res_gastos = $conn->query($sql_gastos);
@@ -73,8 +75,10 @@ while ($row = $result->fetch_assoc()) {
     
     fputcsv($output, [
         $row['id'],
-        $fecha,
-        $hora,
+        $f_inicio_formato,
+        $h_inicio_formato,
+        $f_fin_formato,
+        $h_fin_formato,
         $chofer,
         $auxiliar,
         $placas,
