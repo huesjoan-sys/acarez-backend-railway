@@ -21,11 +21,13 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
     $fecha_inicio = date('Y-m-d', strtotime($year . 'W' . $week . '1'));
     $fecha_fin = date('Y-m-d', strtotime($year . 'W' . $week . '7'));
     
-    $sql = "SELECT id, fecha, chofer, placas, destino_ida, total_general, 
-                   km_inicial, km_final, km_total 
-            FROM viajes 
-            WHERE DATE(fecha) BETWEEN '$fecha_inicio' AND '$fecha_fin' 
-            ORDER BY fecha";
+    $sql = "SELECT r.id, r.fecha_inicio AS fecha, r.chofer, r.placas, r.origen, r.km_inicial, r.km_final, r.km_total,
+                   COALESCE(SUM(g.monto), 0) AS total_general 
+            FROM rutas r 
+            LEFT JOIN gastos g ON r.id = g.ruta_id
+            WHERE DATE(r.fecha_inicio) BETWEEN '$fecha_inicio' AND '$fecha_fin' 
+            GROUP BY r.id
+            ORDER BY r.fecha_inicio";
     $result = $conn->query($sql);
     
     $viajes = [];
@@ -35,10 +37,10 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
         $total_gastos_semana += $gasto;
         $viajes[] = [
             'id' => $row['id'],
-            'fecha' => date('d/m/Y', strtotime($row['fecha'])),
+            'fecha' => date('d/m/Y H:i', strtotime($row['fecha'])),
             'chofer' => $row['chofer'],
             'placas' => $row['placas'],
-            'destino' => $row['destino_ida'],
+            'destino' => $row['origen'],
             'gasto' => number_format($gasto, 2),
             'km_inicial' => isset($row['km_inicial']) ? $row['km_inicial'] : 0,
             'km_final'   => isset($row['km_final']) ? $row['km_final'] : 0,
@@ -109,25 +111,42 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
 }
 
 // ==============================================
-// 3. FUNCIONES DE APOYO
+// 3. FUNCIONES DE APOYO (Migradas a modelo relacional 'rutas')
 // ==============================================
 function obtenerReportes($conn, $filtros = []) {
-    $where = "";
+    $where = "1=1";
+    
+    // Filtro temporal por semana o rango de fechas
     if (!empty($filtros['semana'])) {
         $year = substr($filtros['semana'], 0, 4);
         $week = substr($filtros['semana'], 6);
         $fecha_inicio = date('Y-m-d', strtotime($year . 'W' . $week . '1'));
         $fecha_fin = date('Y-m-d', strtotime($year . 'W' . $week . '7'));
-        $where = "WHERE DATE(fecha) BETWEEN '$fecha_inicio' AND '$fecha_fin'";
+        $where .= " AND DATE(r.fecha_inicio) BETWEEN '$fecha_inicio' AND '$fecha_fin'";
     } elseif (!empty($filtros['fecha_inicio']) && !empty($filtros['fecha_fin'])) {
-        $where = "WHERE DATE(fecha) BETWEEN '{$filtros['fecha_inicio']}' AND '{$filtros['fecha_fin']}'";
+        $where .= " AND DATE(r.fecha_inicio) BETWEEN '{$filtros['fecha_inicio']}' AND '{$filtros['fecha_fin']}'";
     }
-    $sql = "SELECT * FROM viajes $where ORDER BY fecha ASC";
+
+    // Filtro secundario por chofer
+    if (!empty($filtros['chofer'])) {
+        $choferEsc = $conn->real_escape_string($filtros['chofer']);
+        $where .= " AND r.chofer = '$choferEsc'";
+    }
+
+    $sql = "SELECT r.*, COALESCE(SUM(g.monto), 0) AS total_general,
+                   COUNT(DISTINCT p.id) AS total_paradas
+            FROM rutas r 
+            LEFT JOIN gastos g ON r.id = g.ruta_id 
+            LEFT JOIN paradas p ON r.id = p.ruta_id 
+            WHERE $where 
+            GROUP BY r.id 
+            ORDER BY r.fecha_inicio DESC";
+            
     return $conn->query($sql);
 }
 
 function obtenerSemanasDisponibles($conn) {
-    return $conn->query("SELECT DISTINCT CONCAT(YEAR(fecha), '-W', LPAD(WEEK(fecha, 1), 2, '0')) as semana, MIN(DATE(fecha)) as inicio, MAX(DATE(fecha)) as fin FROM viajes GROUP BY semana ORDER BY semana DESC");
+    return $conn->query("SELECT DISTINCT CONCAT(YEAR(fecha_inicio), '-W', LPAD(WEEK(fecha_inicio, 1), 2, '0')) as semana, MIN(DATE(fecha_inicio)) as inicio, MAX(DATE(fecha_inicio)) as fin FROM rutas GROUP BY semana ORDER BY semana DESC");
 }
 
 function obtenerDestinos($conn) {
@@ -561,35 +580,101 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $semana = $_GET['semana'] ?? '';
         $fecha_inicio = $_GET['fecha_inicio'] ?? '';
         $fecha_fin = $_GET['fecha_fin'] ?? '';
-        $filtros = ['semana' => $semana, 'fecha_inicio' => $fecha_inicio, 'fecha_fin' => $fecha_fin];
+        $choferFiltro = $_GET['chofer'] ?? '';
+        
+        $filtros = [
+            'semana' => $semana, 
+            'fecha_inicio' => $fecha_inicio, 
+            'fecha_fin' => $fecha_fin,
+            'chofer' => $choferFiltro
+        ];
+        
         $reportes = obtenerReportes($conn, $filtros);
         $semanas = obtenerSemanasDisponibles($conn);
+        $listaChoferesFiltro = $conn->query("SELECT DISTINCT nombre_chofer FROM choferes WHERE activo = 1 ORDER BY nombre_chofer ASC");
         ?>
         
         <div class="card">
-            <form method="GET" class="form-inline" id="filtroForm">
+            <h2>📊 Control y Auditoría de Viajes</h2>
+            <form method="GET" class="form-inline" id="filtroForm" style="align-items: flex-end;">
                 <input type="hidden" name="seccion" value="reportes">
-                <select name="semana" id="semanaSelect">
-                    <option value="">-- Filtrar por semana --</option>
-                    <?php while($row = $semanas->fetch_assoc()): ?>
-                        <option value="<?= $row['semana'] ?>" <?= ($semana == $row['semana']) ? 'selected' : '' ?>>
-                            Semana <?= substr($row['semana'], -2) ?> (<?= $row['inicio'] ?> al <?= $row['fin'] ?>)
-                        </option>
-                    <?php endwhile; ?>
-                </select>
-                <input type="date" name="fecha_inicio" value="<?= $fecha_inicio ?>">
-                <span>a</span>
-                <input type="date" name="fecha_fin" value="<?= $fecha_fin ?>">
-                <button type="submit" class="btn btn-primary">Filtrar</button>
-                <a href="?seccion=reportes" class="btn btn-primary">Limpiar</a>
-                <button type="button" class="btn btn-success" onclick="exportarExcel()">Exportar Excel</button>
-                <button type="button" class="btn btn-info" onclick="exportarCSV()">📱 Exportar CSV (Celular)</button>
-                <button type="button" class="btn btn-danger" onclick="exportarPDF()">📄 Exportar PDF</button>
-                <button type="button" class="btn btn-success" id="btnDetalleSemana" style="background:#17a2b8; color:white;">📋 Detalle Semana</button>
+                
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label style="font-size:12px; font-weight:bold;">Semana</label>
+                    <select name="semana" id="semanaSelect">
+                        <option value="">-- Filtrar por semana --</option>
+                        <?php while($row = $semanas->fetch_assoc()): ?>
+                            <option value="<?= $row['semana'] ?>" <?= ($semana == $row['semana']) ? 'selected' : '' ?>>
+                                Semana <?= substr($row['semana'], -2) ?> (<?= $row['inicio'] ?> al <?= $row['fin'] ?>)
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label style="font-size:12px; font-weight:bold;">Fecha Inicio</label>
+                    <input type="date" name="fecha_inicio" value="<?= htmlspecialchars($fecha_inicio) ?>">
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label style="font-size:12px; font-weight:bold;">Fecha Fin</label>
+                    <input type="date" name="fecha_fin" value="<?= htmlspecialchars($fecha_fin) ?>">
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label style="font-size:12px; font-weight:bold;">Filtrar por Chofer</label>
+                    <select name="chofer" style="padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                        <option value="">-- Todos los choferes --</option>
+                        <?php while($ch = $listaChoferesFiltro->fetch_assoc()): ?>
+                            <option value="<?= htmlspecialchars($ch['nombre_chofer']) ?>" <?= ($choferFiltro == $ch['nombre_chofer']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($ch['nombre_chofer']) ?>
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
+
+                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:5px;">
+                    <button type="submit" class="btn btn-primary">🔍 Filtrar</button>
+                    <a href="?seccion=reportes" class="btn btn-warning" style="text-decoration:none; display:inline-flex; align-items:center;">Limpiar</a>
+                    <button type="button" class="btn btn-success" onclick="exportarExcel()">Exportar Excel</button>
+                    <button type="button" class="btn btn-info" onclick="exportarCSV()">📱 Exportar CSV</button>
+                    <button type="button" class="btn btn-danger" onclick="exportarPDF()">📄 Exportar PDF</button>
+                    <button type="button" class="btn btn-success" id="btnDetalleSemana" style="background:#17a2b8; color:white;">📋 Detalle Semana</button>
+                </div>
             </form>
         </div>
         
-        <?php if($reportes->num_rows == 0): ?>
+        <?php 
+        // Calcular métricas KPI dinámicas para la cabecera
+        $totalViajesCount = 0;
+        $sumaKmTotales = 0;
+        $sumaGastosGenerales = 0;
+        $arrayReportes = [];
+        while($r = $reportes->fetch_assoc()) {
+            $totalViajesCount++;
+            $sumaKmTotales += floatval($r['km_total'] ?? 0);
+            $sumaGastosGenerales += floatval($r['total_general'] ?? 0);
+            $arrayReportes[] = $r;
+        }
+        ?>
+
+        <!-- Tarjetas de Resumen (KPIs Dinámicos) -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px;">
+            <div class="card" style="background: linear-gradient(135deg, #4A148C, #6A1B9A); color: white; margin-bottom:0;">
+                <h5 style="font-size: 14px; opacity: 0.9;">Viajes / Rutas Filtradas</h5>
+                <h3 style="font-size: 28px; margin-top: 5px;"><?= $totalViajesCount ?></h3>
+            </div>
+            <div class="card" style="background: linear-gradient(135deg, #2e7d32, #4caf50); color: white; margin-bottom:0;">
+                <h5 style="font-size: 14px; opacity: 0.9;">Gasto Total Comprobado</h5>
+                <h3 style="font-size: 28px; margin-top: 5px;">$<?= number_format($sumaGastosGenerales, 2) ?></h3>
+            </div>
+            <div class="card" style="background: linear-gradient(135deg, #0277bd, #03a9f4); color: white; margin-bottom:0;">
+                <h5 style="font-size: 14px; opacity: 0.9;">Kilómetros Recorridos</h5>
+                <h3 style="font-size: 28px; margin-top: 5px;"><?= number_format($sumaKmTotales, 1) ?> km</h3>
+            </div>
+        </div>
+
+        <?php if(empty($arrayReportes)): ?>
             <div class="card">No hay reportes para los filtros seleccionados.</div>
         <?php else: ?>
             <div class="card">
@@ -597,8 +682,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <table id="tablaReportes">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Fecha</th>
+                                <th>ID Ruta</th>
+                                <th>Fecha Inicio</th>
                                 <th>Chofer</th>
                                 <th>Placas</th>
                                 <th>No. Eco</th>
@@ -613,17 +698,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <?php 
                         $fecha_actual = '';
                         $suma_km_dia = 0;
-                        while($row = $reportes->fetch_assoc()): 
+                        foreach($arrayReportes as $row): 
                             $km_inicial = isset($row['km_inicial']) ? floatval($row['km_inicial']) : 0;
                             $km_final   = isset($row['km_final']) ? floatval($row['km_final']) : 0;
                             $km_total   = isset($row['km_total']) ? floatval($row['km_total']) : 0;
-                            $fecha_row = date('Y-m-d', strtotime($row['fecha']));
+                            $fecha_row = date('Y-m-d', strtotime($row['fecha_inicio']));
                             
                             if ($fecha_actual != '' && $fecha_actual != $fecha_row) {
                                 echo '<tr class="resumen-dia">
-                                        <td colspan="8" style="text-align:right;">Total Km del día ' . date('d/m/Y', strtotime($fecha_actual)) . ':</td>
+                                        <td colspan="7" style="text-align:right;">Total Km del día ' . date('d/m/Y', strtotime($fecha_actual)) . ':</td>
                                         <td colspan="1">' . number_format($suma_km_dia, 0) . ' km</td>
-                                        <td colspan="1"></td>
+                                        <td colspan="2"></td>
                                       </tr>';
                                 $suma_km_dia = 0;
                             }
@@ -631,8 +716,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             $suma_km_dia += $km_total;
                         ?>
                             <tr>
-                                <td><?= $row['id'] ?></td>
-                                <td><?= date('d/m/Y H:i', strtotime($row['fecha'])) ?></td>
+                                <td><strong>#<?= $row['id'] ?></strong></td>
+                                <td><?= date('d/m/Y H:i', strtotime($row['fecha_inicio'])) ?></td>
                                 <td><?= htmlspecialchars($row['chofer']) ?></td>
                                 <td><?= htmlspecialchars($row['placas']) ?></td>
                                 <td><?= htmlspecialchars($row['no_economico']) ?></td>
@@ -641,16 +726,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <td><?= number_format($km_total, 0) ?> km</td>
                                 <td style="font-weight: bold; color: #4A148C;">$<?= number_format($row['total_general'], 2) ?></td>
                                 <td>
-                                    <button class="btn btn-primary btn-pequeno" onclick="verDetalle(<?= $row['id'] ?>)">Ver</button>
-                                    <button class="btn btn-danger btn-pequeno" onclick="eliminarViaje(<?= $row['id'] ?>)">Eliminar</button>
+                                    <button class="btn btn-info btn-pequeno" onclick="verDetalleRuta(<?= $row['id'] ?>)">Ver Detalles</button>
                                 </td>
                             </tr>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                         <?php if ($fecha_actual != ''): ?>
                             <tr class="resumen-dia">
-                                <td colspan="8" style="text-align:right;">Total Km del día <?= date('d/m/Y', strtotime($fecha_actual)) ?>:</td>
+                                <td colspan="7" style="text-align:right;">Total Km del día <?= date('d/m/Y', strtotime($fecha_actual)) ?>:</td>
                                 <td colspan="1"><?= number_format($suma_km_dia, 0) ?> km</td>
-                                <td colspan="1"></td>
+                                <td colspan="2"></td>
                             </tr>
                         <?php endif; ?>
                         </tbody>
@@ -675,7 +759,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($chofer) {
                     $fecha_inicio = $fecha_ruta . ' 00:00:00';
                     
-                    // 🟢 CORRECCIÓN: 6 marcas '?' y 'ssssss' correspondientes a 6 parámetros
                     $stmt = $conn->prepare("INSERT INTO rutas (chofer, auxiliar, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, ?, 0, 'programada')");
                     $origen = 'Pendiente';
                     $stmt->bind_param("ssssss", $chofer['nombre_chofer'], $auxiliar_nombre, $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
@@ -1097,89 +1180,6 @@ function verImagenGrande(src) {
     modalImg.src = src;
 }
 
-function verDetalle(id) {
-    const modal = document.getElementById('detalleModal');
-    const body = document.getElementById('modalBody');
-    girarLogoInferior();
-    body.innerHTML = '<span class="cerrar-modal" onclick="cerrarModal()">&times;</span><div style="text-align:center; padding:40px;">Cargando detalles...</div>';
-    modal.style.display = 'flex';
-    
-    fetch('obtener_reporte.php?id=' + id)
-        .then(res => res.json())
-        .then(data => {
-            const totalGastos = parseFloat(data.total_general) || 0;
-            let fotosHtml = '<div class="grupo-fotos">';
-            const fotos = [
-                { label: 'KM Inicial', src: data.foto_inicio },
-                { label: 'KM Final', src: data.foto_fin },
-                { label: 'Hotel Ida', src: data.foto_hotel_ida },
-                { label: 'Hotel Regreso', src: data.foto_hotel_regreso },
-                { label: 'Caseta Ida', src: data.foto_caseta_ida },
-                { label: 'Caseta Regreso', src: data.foto_caseta_regreso },
-                { label: 'Comida Ida', src: data.foto_comida_ida },
-                { label: 'Comida Regreso', src: data.foto_comida_regreso },
-                { label: 'Estacionamiento Ida', src: data.foto_estac_ida },
-                { label: 'Estacionamiento Regreso', src: data.foto_estac_reg },
-                { label: 'Gasolina Ida', src: data.foto_gasolina_ida },
-                { label: 'Gasolina Regreso', src: data.foto_gasolina_regreso }
-            ];
-            fotos.forEach(foto => {
-                if (foto.src && foto.src.trim() !== '') {
-                    let src = foto.src;
-                    if (!src.startsWith('/') && !src.startsWith('http')) {
-                        src = '/' + src;
-                    }
-                    fotosHtml += `<img src="${src}" onclick="verImagenGrande('${src}')" title="${foto.label}">`;
-                }
-            });
-            fotosHtml += '</div>';
-            
-            const safeFloat = (val) => isNaN(parseFloat(val)) ? 0 : parseFloat(val);
-            
-            body.innerHTML = `
-                <span class="cerrar-modal" onclick="cerrarModal()">&times;</span>
-                <h2 style="color:#4A148C;">DETALLE DEL VIAJE #${data.id}</h2>
-                <div style="background:#f5f5f5; padding:12px; border-radius:10px; margin:10px 0;">
-                    <p><strong>Chofer:</strong> ${data.chofer}</p>
-                    <p><strong>Vehículo:</strong> ${data.placas} | <strong>No. Económico:</strong> ${data.no_economico || 'N/A'}</p>
-                    <p><strong>Ubicación GPS:</strong> ${data.direccion_actual}</p>
-                    <p><strong>Fecha:</strong> ${data.fecha}</p>
-                    <p><strong>Km inicial:</strong> ${data.km_inicial || 0} | <strong>Km final:</strong> ${data.km_final || 0} | <strong>Km recorrido:</strong> ${data.km_total || 0}</p>
-                </div>
-                <div class="grid-2col">
-                    <div class="seccion-viaje">
-                        <h3>TRAYECTO IDA</h3>
-                        <p>Origen: ${data.origen_ida}</p>
-                        <p>Destino: ${data.destino_ida}</p>
-                        <p>Hotel: $${safeFloat(data.gasto_hotel_ida).toFixed(2)}</p>
-                        <p>Caseta: $${safeFloat(data.gasto_caseta_ida).toFixed(2)}</p>
-                        <p>Comida: $${safeFloat(data.gasto_comida_ida).toFixed(2)}</p>
-                        <p>Estacionamiento: $${safeFloat(data.gasto_estac_ida).toFixed(2)}</p>
-                        <p><strong>Gasolina: $${safeFloat(data.gasto_gasolina_ida).toFixed(2)}</strong></p>
-                    </div>
-                    <div class="seccion-viaje seccion-viaje-regreso">
-                        <h3>TRAYECTO REGRESO</h3>
-                        <p>Origen: ${data.origen_regreso}</p>
-                        <p>Destino: ${data.destino_regreso}</p>
-                        <p>Hotel: $${safeFloat(data.gasto_hotel_reg).toFixed(2)}</p>
-                        <p>Caseta: $${safeFloat(data.gasto_caseta_reg).toFixed(2)}</p>
-                        <p>Comida: $${safeFloat(data.gasto_comida_reg).toFixed(2)}</p>
-                        <p>Estacionamiento: $${safeFloat(data.gasto_estac_reg).toFixed(2)}</p>
-                        <p><strong>Gasolina: $${safeFloat(data.gasto_gasolina_reg).toFixed(2)}</strong></p>
-                    </div>
-                </div>
-                <div style="background:#E1BEE7; padding:15px; border-radius:10px; text-align:center;">
-                    <p style="font-size:18px;"><strong>TOTAL DE GASTOS: $${totalGastos.toFixed(2)}</strong></p>
-                </div>
-                <h3 style="margin-top:15px; text-align:center;">Evidencias Fotográficas</h3>
-                ${fotosHtml}
-            `;
-        })
-        .catch(err => {
-            body.innerHTML = `<span class="cerrar-modal" onclick="cerrarModal()">&times;</span><div style="text-align:center; padding:40px; color:red;"><h3>Error al cargar los detalles</h3><button class="btn btn-primary" onclick="cerrarModal()">Cerrar</button></div>`;
-        });
-}
-
 function verDetalleRuta(id) {
     const modal = document.getElementById('detalleModal');
     const body = document.getElementById('modalBody');
@@ -1347,13 +1347,13 @@ document.getElementById('btnDetalleSemana')?.addEventListener('click', function(
                 html += '<div style="overflow-x: auto;">';
                 html += '<table class="tabla-semana" style="width:100%; border-collapse:collapse;">';
                 html += '<thead><tr style="background:#4A148C; color:white;">';
-                html += '<th>ID</th><th>Fecha</th><th>Chofer</th><th>Placas</th><th>Destino</th>';
+                html += '<th>ID Ruta</th><th>Fecha Inicio</th><th>Chofer</th><th>Placas</th><th>Origen</th>';
                 html += '<th>Km Inicial</th><th>Km Final</th><th>Km Total</th><th>Total Gastos</th>';
                 html += '</tr></thead><tbody>';
                 
                 data.viajes.forEach(v => {
                     html += `<tr>
-                        <td style="white-space:nowrap;">${v.id}</td>
+                        <td style="white-space:nowrap;">#${v.id}</td>
                         <td style="white-space:nowrap;">${v.fecha}</td>
                         <td style="white-space:nowrap;">${v.chofer}</td>
                         <td style="white-space:nowrap;">${v.placas}</td>
