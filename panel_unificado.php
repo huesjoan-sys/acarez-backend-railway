@@ -21,7 +21,6 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
     $fecha_inicio = date('Y-m-d', strtotime($year . 'W' . $week . '1'));
     $fecha_fin = date('Y-m-d', strtotime($year . 'W' . $week . '7'));
     
-    // 🟢 Corrección con subconsulta para evitar multiplicación de gastos
     $sql = "SELECT r.id, r.fecha_inicio AS fecha, r.chofer, r.placas, r.origen, r.km_inicial, r.km_final, r.km_total,
                    (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general 
             FROM rutas r 
@@ -64,12 +63,10 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     header('Content-Type: application/json');
     $ruta_id = intval($_GET['ruta_id']);
     
-    // Obtener datos generales de la ruta (incluyendo fotos de odómetro)
     $ruta_sql = "SELECT *, foto_inicio, foto_fin FROM rutas WHERE id = $ruta_id";
     $ruta_result = $conn->query($ruta_sql);
     $ruta = $ruta_result->fetch_assoc();
     
-    // Calcular el total de gastos desde la tabla 'gastos'[cite: 4]
     $sql_gastos_suma = "SELECT COALESCE(SUM(monto), 0) AS total_gastos FROM gastos WHERE ruta_id = $ruta_id";
     $res_gastos_suma = $conn->query($sql_gastos_suma);
     $row_suma = $res_gastos_suma->fetch_assoc();
@@ -79,7 +76,6 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         $ruta['total_gastos'] = $total_gastos;
     }
     
-    // Obtener la lista desglosada de los gastos con su parada_id asociado[cite: 4]
     $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, foto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
     $res_lista_gastos = $conn->query($sql_lista_gastos);
     $gastos = [];
@@ -87,7 +83,6 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         $gastos[] = $g;
     }
     
-    // Obtener las paradas de la ruta[cite: 4]
     $paradas_sql = "SELECT p.*, d.razon_social, d.sucursal, d.direccion 
                     FROM paradas p 
                     LEFT JOIN destinos d ON p.destino_id = d.id 
@@ -110,7 +105,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
 }
 
 // ==============================================
-// 3. FUNCIONES DE APOYO (Con subconsultas exactas)
+// 3. FUNCIONES DE APOYO
 // ==============================================
 function obtenerReportes($conn, $filtros = []) {
     $where = "1=1";
@@ -130,7 +125,6 @@ function obtenerReportes($conn, $filtros = []) {
         $where .= " AND r.chofer = '$choferEsc'";
     }
 
-    // 🟢 CORRECCIÓN: Uso de subconsultas para evitar duplicar montos por producto cartesiano
     $sql = "SELECT r.*, 
                    (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general,
                    (SELECT COUNT(p.id) FROM paradas p WHERE p.ruta_id = r.id) AS total_paradas
@@ -158,7 +152,6 @@ function obtenerRutas($conn, $filtros = []) {
         $where .= " AND r.estatus = '" . $conn->real_escape_string($filtros['estatus']) . "'";
     }
     
-    // 🟢 Corrección de sumatoria por subconsulta
     $sql = "SELECT r.*, 
                    (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_gastos 
             FROM rutas r 
@@ -215,6 +208,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $conn->query("UPDATE paradas SET estatus = 'completada', completada = 1 WHERE id = $parada_id");
         
         echo json_encode(['success' => true, 'mensaje' => 'Gasto y parada registrados correctamente']);
+        exit;
+    }
+
+    // ========== CREAR RUTA (Con redirección PRG para evitar duplicados al refrescar) ==========
+    if (isset($_POST['crear_ruta'])) {
+        $chofer_id = intval($_POST['chofer_id']);
+        $auxiliar_nombre = trim($_POST['auxiliar_nombre'] ?? '');
+        $fecha_ruta = $_POST['fecha_ruta'] ?? date('Y-m-d');
+        $destinos_seleccionados = $_POST['destinos'] ?? [];
+        
+        if ($chofer_id > 0 && !empty($destinos_seleccionados)) {
+            $chofer_sql = "SELECT nombre_chofer, placas, numero_economico FROM choferes WHERE id = $chofer_id AND activo = 1";
+            $chofer_result = $conn->query($chofer_sql);
+            $chofer = $chofer_result->fetch_assoc();
+            
+            if ($chofer) {
+                $fecha_inicio = $fecha_ruta . ' 00:00:00';
+                
+                $stmt = $conn->prepare("INSERT INTO rutas (chofer, auxiliar, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, ?, 0, 'programada')");
+                $origen = 'Pendiente';
+                $stmt->bind_param("ssssss", $chofer['nombre_chofer'], $auxiliar_nombre, $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
+                $stmt->execute();
+                $ruta_id = $conn->insert_id;
+                $stmt->close();
+                
+                $orden = 0;
+                foreach ($destinos_seleccionados as $destino_id) {
+                    $orden++;
+                    $stmt = $conn->prepare("INSERT INTO paradas (ruta_id, orden, destino_id, km_actual) VALUES (?, ?, ?, NULL)");
+                    $stmt->bind_param("iii", $ruta_id, $orden, $destino_id);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+                
+                $conn->query("UPDATE rutas SET numero_paradas = $orden WHERE id = $ruta_id");
+                
+                $_SESSION['mensaje_exito'] = "✅ Ruta creada correctamente con " . $orden . " destinos.";
+            }
+        } else {
+            $_SESSION['mensaje_error'] = "❌ Debes seleccionar un chofer y al menos un destino.";
+        }
+        header("Location: ?seccion=rutas");
         exit;
     }
 
@@ -641,7 +676,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
         
         <?php 
-        // Calcular métricas KPI dinámicas para la cabecera
         $totalViajesCount = 0;
         $sumaKmTotales = 0;
         $sumaGastosGenerales = 0;
@@ -687,6 +721,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <th>Km Final</th>
                                 <th>Km Recorrido</th>
                                 <th>Total Gastos</th>
+                                <th>Estatus</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -704,7 +739,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 echo '<tr class="resumen-dia">
                                         <td colspan="7" style="text-align:right;">Total Km del día ' . date('d/m/Y', strtotime($fecha_actual)) . ':</td>
                                         <td colspan="1">' . number_format($suma_km_dia, 0) . ' km</td>
-                                        <td colspan="2"></td>
+                                        <td colspan="3"></td>
                                       </tr>';
                                 $suma_km_dia = 0;
                             }
@@ -722,6 +757,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <td><?= number_format($km_total, 0) ?> km</td>
                                 <td style="font-weight: bold; color: #4A148C;">$<?= number_format($row['total_general'], 2) ?></td>
                                 <td>
+                                    <?php 
+                                        $est = strtolower(trim($row['estatus'] ?? 'programada'));
+                                        $badgeClase = 'badge-programada';
+                                        if ($est == 'completada') $badgeClase = 'badge-completada';
+                                        elseif ($est == 'activa' || $est == 'en_proceso' || $est == 'en proceso' || $est == 'iniciada') $badgeClase = 'badge-activa';
+                                        elseif ($est == 'cancelada') $badgeClase = 'badge-cancelada';
+                                    ?>
+                                    <span class="badge <?= $badgeClase ?>"><?= ucfirst($row['estatus'] ?? 'Programada') ?></span>
+                                </td>
+                                <td>
                                     <button class="btn btn-info btn-pequeno" onclick="verDetalleRuta(<?= $row['id'] ?>)">Ver Detalles</button>
                                 </td>
                             </tr>
@@ -730,7 +775,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <tr class="resumen-dia">
                                 <td colspan="7" style="text-align:right;">Total Km del día <?= date('d/m/Y', strtotime($fecha_actual)) ?>:</td>
                                 <td colspan="1"><?= number_format($suma_km_dia, 0) ?> km</td>
-                                <td colspan="2"></td>
+                                <td colspan="3"></td>
                             </tr>
                         <?php endif; ?>
                         </tbody>
@@ -741,45 +786,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
     <?php elseif ($seccion == 'rutas'): ?>
         <?php
-        if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['crear_ruta'])) {
-            $chofer_id = intval($_POST['chofer_id']);
-            $auxiliar_nombre = trim($_POST['auxiliar_nombre'] ?? '');
-            $fecha_ruta = $_POST['fecha_ruta'] ?? date('Y-m-d');
-            $destinos_seleccionados = $_POST['destinos'] ?? [];
-            
-            if ($chofer_id > 0 && !empty($destinos_seleccionados)) {
-                $chofer_sql = "SELECT nombre_chofer, placas, numero_economico FROM choferes WHERE id = $chofer_id AND activo = 1";
-                $chofer_result = $conn->query($chofer_sql);
-                $chofer = $chofer_result->fetch_assoc();
-                
-                if ($chofer) {
-                    $fecha_inicio = $fecha_ruta . ' 00:00:00';
-                    
-                    $stmt = $conn->prepare("INSERT INTO rutas (chofer, auxiliar, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, ?, 0, 'programada')");
-                    $origen = 'Pendiente';
-                    $stmt->bind_param("ssssss", $chofer['nombre_chofer'], $auxiliar_nombre, $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
-                    $stmt->execute();
-                    $ruta_id = $conn->insert_id;
-                    $stmt->close();
-                    
-                    $orden = 0;
-                    foreach ($destinos_seleccionados as $destino_id) {
-                        $orden++;
-                        $stmt = $conn->prepare("INSERT INTO paradas (ruta_id, orden, destino_id, km_actual) VALUES (?, ?, ?, NULL)");
-                        $stmt->bind_param("iii", $ruta_id, $orden, $destino_id);
-                        $stmt->execute();
-                        $stmt->close();
-                    }
-                    
-                    $conn->query("UPDATE rutas SET numero_paradas = $orden WHERE id = $ruta_id");
-                    
-                    echo '<div class="success-msg">✅ Ruta creada correctamente con ' . $orden . ' destinos.</div>';
-                }
-            } else {
-                echo '<div class="error-msg">❌ Debes seleccionar un chofer y al menos un destino.</div>';
-            }
+        // Mostrar mensajes de sesión provenientes de la redirección PRG
+        if (isset($_SESSION['mensaje_exito'])) {
+            echo '<div class="success-msg">' . $_SESSION['mensaje_exito'] . '</div>';
+            unset($_SESSION['mensaje_exito']);
         }
-        
+        if (isset($_SESSION['mensaje_error'])) {
+            echo '<div class="error-msg">' . $_SESSION['mensaje_error'] . '</div>';
+            unset($_SESSION['mensaje_error']);
+        }
+
         if (isset($_GET['eliminar_ruta']) && is_numeric($_GET['eliminar_ruta'])) {
             $ruta_id = intval($_GET['eliminar_ruta']);
             $conn->query("DELETE FROM paradas WHERE ruta_id = $ruta_id");
@@ -802,6 +818,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="card">
             <h2>➕ Crear Nueva Ruta</h2>
             <form method="POST" class="form-inline" style="flex-wrap: wrap; gap: 10px;">
+                <input type="hidden" name="crear_ruta" value="1">
                 <div style="display:flex; flex-direction:column; gap:8px; min-width: 250px;">
                     <select name="chofer_id" required style="width: 100%;">
                         <option value="">-- Seleccionar Chofer --</option>
@@ -820,7 +837,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 <input type="date" name="fecha_ruta" value="<?= date('Y-m-d') ?>" required>
                 
-                <button type="submit" name="crear_ruta" class="btn btn-success">➕ Crear Ruta</button>
+                <button type="submit" class="btn btn-success">➕ Crear Ruta</button>
                 
                 <div style="width: 100%; margin-top: 15px;">
                     <p><strong>Selecciona los destinos para esta ruta:</strong> 
@@ -1112,9 +1129,6 @@ function girarLogoInferior() {
     setTimeout(() => logo.classList.remove('girar-logo'), 5000);
 }
 
-// ========================================================
-// SCRIPT INTEGRADO: Contador y Orden visual de destinos
-// ========================================================
 document.addEventListener('DOMContentLoaded', () => {
     girarLogoInferior();
 
@@ -1124,18 +1138,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         contenedor.querySelectorAll('input[type="checkbox"]').forEach(function(checkbox) {
             checkbox.addEventListener('change', function() {
-                // 1. Lógica del contador
                 const contador = document.querySelectorAll('input[name="destinos[]"]:checked').length;
                 document.getElementById('contadorDestinos').textContent = contador;
 
-                // 2. Lógica del reordenamiento visual y de envío
                 if (this.checked) {
                     ordenClicks.push(this.value);
-                    this.closest('label').style.background = '#e8f5e9'; // Resalta en verde claro
-                    contenedor.appendChild(this.closest('label')); // Mueve la opción al final del contenedor
+                    this.closest('label').style.background = '#e8f5e9';
+                    contenedor.appendChild(this.closest('label'));
                 } else {
                     ordenClicks = ordenClicks.filter(val => val !== this.value);
-                    this.closest('label').style.background = 'transparent'; // Quita el resaltado
+                    this.closest('label').style.background = 'transparent';
                 }
             });
         });
@@ -1193,7 +1205,6 @@ function verDetalleRuta(id) {
             const paradas = data.paradas || [];
             const gastos = data.gastos || [];
             
-            // Función auxiliar para formatear la ruta de la imagen
             const prepararSrc = (img) => {
                 if (!img || img.trim() === '') return '';
                 if (!img.startsWith('/') && !img.startsWith('http')) return '/' + img;
