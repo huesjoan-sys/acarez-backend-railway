@@ -626,6 +626,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 </div>
 
+<!-- VENTANA EMERGENTE (MODAL) PARA EDITAR CHOFER -->
+<div id="editarChoferModal" class="detalle-modal" style="display:none;">
+    <div class="detalle-content" style="max-width: 500px;">
+        <span class="cerrar-modal" onclick="cerrarEditarChoferModal()">&times;</span>
+        <h3 style="color:#4A148C; margin-bottom:15px;">✏️ Editar Chofer</h3>
+        <form method="POST">
+            <input type="hidden" name="id" id="modal_edit_chofer_id">
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:bold;">Nombre del Chofer</label>
+                <input type="text" name="nombre_chofer" id="modal_edit_nombre_chofer" required style="width:100%; padding:8px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:bold;">Placas</label>
+                <input type="text" name="placas_chofer" id="modal_edit_placas_chofer" required style="width:100%; padding:8px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label style="font-size:12px; font-weight:bold;">Número Económico</label>
+                <input type="text" name="numero_economico_chofer" id="modal_edit_noe_chofer" required style="width:100%; padding:8px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+            <div style="text-align:right; display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" class="btn btn-danger" onclick="cerrarEditarChoferModal()">Cancelar</button>
+                <button type="submit" name="editar_chofer" class="btn btn-success">💾 Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- VENTANA EMERGENTE (MODAL) PARA EDITAR AUXILIAR -->
+<div id="editarAuxiliarModal" class="detalle-modal" style="display:none;">
+    <div class="detalle-content" style="max-width: 450px;">
+        <span class="cerrar-modal" onclick="cerrarEditarAuxiliarModal()">&times;</span>
+        <h3 style="color:#4A148C; margin-bottom:15px;">✏️ Editar Auxiliar de Conductor</h3>
+        <form method="POST">
+            <input type="hidden" name="id" id="modal_edit_auxiliar_id">
+            <div style="margin-bottom:15px;">
+                <label style="font-size:12px; font-weight:bold;">Nombre del Auxiliar</label>
+                <input type="text" name="nombre_auxiliar" id="modal_edit_nombre_auxiliar" required style="width:100%; padding:8px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+            <div style="text-align:right; display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" class="btn btn-danger" onclick="cerrarEditarAuxiliarModal()">Cancelar</button>
+                <button type="submit" name="editar_auxiliar" class="btn btn-success">💾 Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div id="imageModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:3000; align-items:center; justify-content:center;" onclick="cerrarImageModal()">
     <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer;">&times;</span>
     <img id="modalImage" style="max-width:90%; max-height:90%; border-radius:10px;">
@@ -1150,30 +1196,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </table>
             </div>
         </div>
-
-        <!-- Formulario oculto para Editar Chofer -->
-        <div id="editarChoferForm" style="display:none; background:#f5f5f5; padding:15px; border-radius:10px; margin-top:15px;">
-            <h3>Editar Chofer</h3>
-            <form method="POST" class="form-inline">
-                <input type="hidden" name="id" id="edit_chofer_id">
-                <input type="text" name="nombre_chofer" id="edit_nombre_chofer" placeholder="Nombre del chofer" required style="flex:2;">
-                <input type="text" name="placas_chofer" id="edit_placas_chofer" placeholder="Placas" required style="flex:1;">
-                <input type="text" name="numero_economico_chofer" id="edit_noe_chofer" placeholder="Ej: A-01" required style="flex:1;">
-                <button type="submit" name="editar_chofer" class="btn btn-success">💾 Guardar</button>
-                <button type="button" class="btn btn-danger" onclick="cancelarEditarChofer()">❌ Cancelar</button>
-            </form>
-        </div>
-
-        <!-- Formulario oculto para Editar Auxiliar -->
-        <div id="editarAuxiliarForm" style="display:none; background:#f5f5f5; padding:15px; border-radius:10px; margin-top:15px;">
-            <h3>Editar Auxiliar de Conductor</h3>
-            <form method="POST" class="form-inline">
-                <input type="hidden" name="id" id="edit_auxiliar_id">
-                <input type="text" name="nombre_auxiliar" id="edit_nombre_auxiliar" placeholder="Nombre del auxiliar" required style="flex:2;">
-                <button type="submit" name="editar_auxiliar" class="btn btn-success">💾 Guardar</button>
-                <button type="button" class="btn btn-danger" onclick="cancelarEditarAuxiliar()">❌ Cancelar</button>
-            </form>
-        </div>
     <?php endif; ?>
 </div>
 
@@ -1288,6 +1310,29 @@ function verImagenGrande(src) {
     const modalImg = document.getElementById('modalImage');
     modal.style.display = 'flex';
     modalImg.src = src;
+}
+
+// 🪟 CONTROL DE VENTANAS EMERGENTES (MODALES) PARA EDICIÓN
+function editarChofer(id) {
+    document.getElementById('modal_edit_chofer_id').value = id;
+    document.getElementById('modal_edit_nombre_chofer').value = document.getElementById('chofer_nombre_' + id).innerText;
+    document.getElementById('modal_edit_placas_chofer').value = document.getElementById('chofer_placas_' + id).innerText;
+    document.getElementById('modal_edit_noe_chofer').value = document.getElementById('chofer_noe_' + id).innerText;
+    document.getElementById('editarChoferModal').style.display = 'flex';
+}
+
+function cerrarEditarChoferModal() {
+    document.getElementById('editarChoferModal').style.display = 'none';
+}
+
+function editarAuxiliar(id) {
+    document.getElementById('modal_edit_auxiliar_id').value = id;
+    document.getElementById('modal_edit_nombre_auxiliar').value = document.getElementById('aux_nombre_' + id).innerText;
+    document.getElementById('editarAuxiliarModal').style.display = 'flex';
+}
+
+function cerrarEditarAuxiliarModal() {
+    document.getElementById('editarAuxiliarModal').style.display = 'none';
 }
 
 function verDetalleRuta(id) {
@@ -1413,30 +1458,6 @@ function editarNoEconomico(id, actual) {
         document.body.appendChild(f);
         f.submit();
     }
-}
-
-function editarChofer(id) {
-    document.getElementById('edit_chofer_id').value = id;
-    document.getElementById('edit_nombre_chofer').value = document.getElementById('chofer_nombre_' + id).innerText;
-    document.getElementById('edit_placas_chofer').value = document.getElementById('chofer_placas_' + id).innerText;
-    document.getElementById('edit_noe_chofer').value = document.getElementById('chofer_noe_' + id).innerText;
-    document.getElementById('editarChoferForm').style.display = 'block';
-    document.getElementById('editarChoferForm').scrollIntoView({ behavior: 'smooth' });
-}
-
-function cancelarEditarChofer() {
-    document.getElementById('editarChoferForm').style.display = 'none';
-}
-
-function editarAuxiliar(id) {
-    document.getElementById('edit_auxiliar_id').value = id;
-    document.getElementById('edit_nombre_auxiliar').value = document.getElementById('aux_nombre_' + id).innerText;
-    document.getElementById('editarAuxiliarForm').style.display = 'block';
-    document.getElementById('editarAuxiliarForm').scrollIntoView({ behavior: 'smooth' });
-}
-
-function cancelarEditarAuxiliar() {
-    document.getElementById('editarAuxiliarForm').style.display = 'none';
 }
 
 function editarDestino(id) {
