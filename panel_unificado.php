@@ -672,6 +672,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 </div>
 
+<!-- VENTANA EMERGENTE (MODAL) PARA EDITAR DESTINO -->
+<div id="editarDestinoModal" class="detalle-modal" style="display:none;">
+    <div class="detalle-content" style="max-width: 550px;">
+        <span class="cerrar-modal" onclick="cerrarEditarDestinoModal()">&times;</span>
+        <h3 style="color:#4A148C; margin-bottom:15px;">✏️ Editar Destino / Cliente</h3>
+        <form method="POST">
+            <input type="hidden" name="id" id="modal_edit_destino_id">
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:bold;">Razón Social</label>
+                <input type="text" name="razon_social" id="modal_edit_razon_social" required style="width:100%; padding:8px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:bold;">Sucursal</label>
+                <input type="text" name="sucursal" id="modal_edit_sucursal" required style="width:100%; padding:8px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label style="font-size:12px; font-weight:bold;">Dirección</label>
+                <input type="text" name="direccion" id="modal_edit_direccion" required style="width:100%; padding:8px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+            <div style="text-align:right; display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" class="btn btn-danger" onclick="cerrarEditarDestinoModal()">Cancelar</button>
+                <button type="submit" name="editar_destino" class="btn btn-success">💾 Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div id="imageModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:3000; align-items:center; justify-content:center;" onclick="cerrarImageModal()">
     <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer;">&times;</span>
     <img id="modalImage" style="max-width:90%; max-height:90%; border-radius:10px;">
@@ -1062,18 +1089,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
         </div>
         
-        <div id="editarDestinoForm" style="display:none; background:#f5f5f5; padding:15px; border-radius:10px; margin-top:10px;">
-            <h3>Editar Destino</h3>
-            <form method="POST" class="form-inline">
-                <input type="hidden" name="id" id="edit_destino_id">
-                <input type="text" name="razon_social" id="edit_razon_social" placeholder="Razón Social" required>
-                <input type="text" name="sucursal" id="edit_sucursal" placeholder="Sucursal" required>
-                <input type="text" name="direccion" id="edit_direccion" placeholder="Dirección" required>
-                <button type="submit" name="editar_destino" class="btn btn-success">💾 Guardar</button>
-                <button type="button" class="btn btn-danger" onclick="cancelarEditarDestino()">❌ Cancelar</button>
-            </form>
-        </div>
-        
     <?php elseif ($seccion == 'catalogos'): ?>
         <?php 
         $catalogos = manejarCatalogos($conn);
@@ -1335,6 +1350,18 @@ function cerrarEditarAuxiliarModal() {
     document.getElementById('editarAuxiliarModal').style.display = 'none';
 }
 
+function editarDestino(id) {
+    document.getElementById('modal_edit_destino_id').value = id;
+    document.getElementById('modal_edit_razon_social').value = document.getElementById('ds_razon_' + id).innerText;
+    document.getElementById('modal_edit_sucursal').value = document.getElementById('ds_sucursal_' + id).innerText;
+    document.getElementById('modal_edit_direccion').value = document.getElementById('ds_direccion_' + id).innerText;
+    document.getElementById('editarDestinoModal').style.display = 'flex';
+}
+
+function cerrarEditarDestinoModal() {
+    document.getElementById('editarDestinoModal').style.display = 'none';
+}
+
 function verDetalleRuta(id) {
     const modal = document.getElementById('detalleModal');
     const body = document.getElementById('modalBody');
@@ -1458,19 +1485,6 @@ function editarNoEconomico(id, actual) {
         document.body.appendChild(f);
         f.submit();
     }
-}
-
-function editarDestino(id) {
-    document.getElementById('edit_destino_id').value = id;
-    document.getElementById('edit_razon_social').value = document.getElementById('ds_razon_' + id).innerText;
-    document.getElementById('edit_sucursal').value = document.getElementById('ds_sucursal_' + id).innerText;
-    document.getElementById('edit_direccion').value = document.getElementById('ds_direccion_' + id).innerText;
-    document.getElementById('editarDestinoForm').style.display = 'block';
-    document.getElementById('editarDestinoForm').scrollIntoView({ behavior: 'smooth' });
-}
-
-function cancelarEditarDestino() {
-    document.getElementById('editarDestinoForm').style.display = 'none';
 }
 
 document.getElementById('btnDetalleSemana')?.addEventListener('click', function() {
