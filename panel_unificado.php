@@ -868,6 +868,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div style="width: 100%; margin-top: 15px;">
                     <p><strong>Selecciona los destinos para esta ruta:</strong> 
                     <span style="color:#666; font-size:12px;">(marca los clientes en el orden que debe visitarlos el chofer)</span></p>
+                    
+                    <!-- 🔍 FILTRO EN TIEMPO REAL PARA CREAR RUTA -->
+                    <input type="text" id="filtroSeleccionDestinos" placeholder="🔍 Escribe para filtrar clientes o sucursales..." onkeyup="filtrarSeleccionDestinos()" style="width: 100%; padding: 8px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px;">
+
                     <div class="seleccion-destinos">
                         <?php if($destinos->num_rows == 0): ?>
                             <p style="color: #999; text-align:center; padding:20px;">No hay destinos registrados. Ve a la sección <strong>Destinos</strong> para agregar.</p>
@@ -973,14 +977,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         <div class="card">
             <h2>📍 Destinos (Clientes)</h2>
+            
             <form method="POST" class="form-inline">
                 <input type="text" name="razon_social" placeholder="Razón Social" required>
                 <input type="text" name="sucursal" placeholder="Sucursal" required>
                 <input type="text" name="direccion" placeholder="Dirección" required>
                 <button type="submit" name="agregar_destino" class="btn btn-success">➕ Agregar</button>
             </form>
+
+            <!-- 🔍 FILTRO EN TIEMPO REAL PARA LA TABLA DE DESTINOS -->
+            <div style="margin: 15px 0;">
+                <input type="text" id="filtroTablaDestinos" placeholder="🔍 Buscar por Razón Social o Sucursal para validar duplicados..." onkeyup="filtrarTablaDestinos()" style="width: 100%; max-width: 400px; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+            </div>
+
             <div style="overflow-x: auto;">
-                <table>
+                <table id="tablaDestinos">
                     <thead>
                         <tr><th>ID</th><th>Razón Social</th><th>Sucursal</th><th>Dirección</th><th>Acciones</th></tr>
                     </thead>
@@ -1207,6 +1218,43 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// 🔍 FUNCIONES DE FILTRADO EN TIEMPO REAL
+function filtrarTablaDestinos() {
+    let input = document.getElementById('filtroTablaDestinos').value.toLowerCase();
+    let table = document.getElementById('tablaDestinos');
+    let tr = table.getElementsByTagName('tr');
+
+    for (let i = 1; i < tr.length; i++) {
+        let tdRazon = tr[i].getElementsByTagName('td')[1];
+        let tdSucursal = tr[i].getElementsByTagName('td')[2];
+        if (tdRazon || tdSucursal) {
+            let textoRazon = tdRazon.textContent || tdRazon.innerText;
+            let textoSucursal = tdSucursal.textContent || tdSucursal.innerText;
+            if (textoRazon.toLowerCase().indexOf(input) > -1 || textoSucursal.toLowerCase().indexOf(input) > -1) {
+                tr[i].style.display = "";
+            } else {
+                tr[i].style.display = "none";
+            }
+        }       
+    }
+}
+
+function filtrarSeleccionDestinos() {
+    let input = document.getElementById('filtroSeleccionDestinos').value.toLowerCase();
+    let contenedor = document.querySelector('.seleccion-destinos');
+    if (!contenedor) return;
+    let labels = contenedor.getElementsByTagName('label');
+
+    for (let i = 0; i < labels.length; i++) {
+        let text = labels[i].textContent || labels[i].innerText;
+        if (text.toLowerCase().indexOf(input) > -1) {
+            labels[i].style.display = "flex";
+        } else {
+            labels[i].style.display = "none";
+        }
+    }
+}
 
 function exportarExcel() {
     let params = new URLSearchParams(window.location.search);
