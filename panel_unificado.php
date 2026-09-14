@@ -315,6 +315,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         header("Location: ?seccion=catalogos");
         exit;
     }
+    if (isset($_POST['editar_chofer'])) {
+        $id = intval($_POST['id']);
+        $nombre = trim($_POST['nombre_chofer']);
+        $placas = trim($_POST['placas_chofer']);
+        $no_economico = trim($_POST['numero_economico_chofer']);
+        $no_normalizado = normalizarNoEconomico($no_economico);
+        if (!empty($nombre) && !empty($placas) && $no_normalizado !== null && !empty($no_normalizado)) {
+            $stmt = $conn->prepare("UPDATE choferes SET nombre_chofer = ?, placas = ?, numero_economico = ? WHERE id = ?");
+            $stmt->bind_param("sssi", $nombre, $placas, $no_normalizado, $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
     if (isset($_POST['eliminar_chofer'])) {
         $id = intval($_POST['id']);
         $conn->query("DELETE FROM choferes WHERE id = $id");
@@ -328,6 +343,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!empty($nombre)) {
             $stmt = $conn->prepare("INSERT INTO auxiliares (nombre, activo) VALUES (?, 1)");
             $stmt->bind_param("s", $nombre);
+            $stmt->execute();
+            $stmt->close();
+        }
+        header("Location: ?seccion=catalogos");
+        exit;
+    }
+    if (isset($_POST['editar_auxiliar'])) {
+        $id = intval($_POST['id']);
+        $nombre = trim($_POST['nombre_auxiliar']);
+        if (!empty($nombre)) {
+            $stmt = $conn->prepare("UPDATE auxiliares SET nombre = ? WHERE id = ?");
+            $stmt->bind_param("si", $nombre, $id);
             $stmt->execute();
             $stmt->close();
         }
@@ -786,7 +813,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
     <?php elseif ($seccion == 'rutas'): ?>
         <?php
-        // Mostrar mensajes de sesión provenientes de la redirección PRG
         if (isset($_SESSION['mensaje_exito'])) {
             echo '<div class="success-msg">' . $_SESSION['mensaje_exito'] . '</div>';
             unset($_SESSION['mensaje_exito']);
@@ -1055,6 +1081,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
+            <!-- 👤 CHOFERES -->
             <div class="card">
                 <h2>👤 Choferes</h2>
                 <form method="POST" class="form-inline">
@@ -1073,6 +1100,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <td id="chofer_placas_<?= $row['id'] ?>"><?= htmlspecialchars($row['placas']) ?></td>
                             <td id="chofer_noe_<?= $row['id'] ?>"><?= htmlspecialchars($row['numero_economico']) ?></td>
                             <td>
+                                <button class="btn btn-warning btn-pequeno" onclick="editarChofer(<?= $row['id'] ?>)">✏️</button>
                                 <form method="POST" style="display:inline;">
                                     <input type="hidden" name="id" value="<?= $row['id'] ?>">
                                     <button type="submit" name="eliminar_chofer" class="btn btn-danger btn-pequeno" onclick="return confirm('¿Eliminar este chofer?')">🗑️</button>
@@ -1084,6 +1112,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </table>
             </div>
 
+            <!-- 🤝 AUXILIARES DE CONDUCTOR -->
             <div class="card">
                 <h2>🤝 Auxiliares de Conductor</h2>
                 <form method="POST" class="form-inline">
@@ -1096,8 +1125,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <?php while($row = $catalogos['auxiliares']->fetch_assoc()): ?>
                         <tr>
                             <td><?= $row['id'] ?></td>
-                            <td><?= htmlspecialchars($row['nombre']) ?></td>
+                            <td id="aux_nombre_<?= $row['id'] ?>"><?= htmlspecialchars($row['nombre']) ?></td>
                             <td>
+                                <button class="btn btn-warning btn-pequeno" onclick="editarAuxiliar(<?= $row['id'] ?>)">✏️</button>
                                 <form method="POST" style="display:inline;">
                                     <input type="hidden" name="id" value="<?= $row['id'] ?>">
                                     <button type="submit" name="eliminar_auxiliar" class="btn btn-danger btn-pequeno" onclick="return confirm('¿Eliminar este auxiliar?')">🗑️</button>
@@ -1108,6 +1138,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </tbody>
                 </table>
             </div>
+        </div>
+
+        <!-- Formulario oculto para Editar Chofer -->
+        <div id="editarChoferForm" style="display:none; background:#f5f5f5; padding:15px; border-radius:10px; margin-top:15px;">
+            <h3>Editar Chofer</h3>
+            <form method="POST" class="form-inline">
+                <input type="hidden" name="id" id="edit_chofer_id">
+                <input type="text" name="nombre_chofer" id="edit_nombre_chofer" placeholder="Nombre del chofer" required style="flex:2;">
+                <input type="text" name="placas_chofer" id="edit_placas_chofer" placeholder="Placas" required style="flex:1;">
+                <input type="text" name="numero_economico_chofer" id="edit_noe_chofer" placeholder="Ej: A-01" required style="flex:1;">
+                <button type="submit" name="editar_chofer" class="btn btn-success">💾 Guardar</button>
+                <button type="button" class="btn btn-danger" onclick="cancelarEditarChofer()">❌ Cancelar</button>
+            </form>
+        </div>
+
+        <!-- Formulario oculto para Editar Auxiliar -->
+        <div id="editarAuxiliarForm" style="display:none; background:#f5f5f5; padding:15px; border-radius:10px; margin-top:15px;">
+            <h3>Editar Auxiliar de Conductor</h3>
+            <form method="POST" class="form-inline">
+                <input type="hidden" name="id" id="edit_auxiliar_id">
+                <input type="text" name="nombre_auxiliar" id="edit_nombre_auxiliar" placeholder="Nombre del auxiliar" required style="flex:2;">
+                <button type="submit" name="editar_auxiliar" class="btn btn-success">💾 Guardar</button>
+                <button type="button" class="btn btn-danger" onclick="cancelarEditarAuxiliar()">❌ Cancelar</button>
+            </form>
         </div>
     <?php endif; ?>
 </div>
@@ -1311,6 +1365,30 @@ function editarNoEconomico(id, actual) {
         document.body.appendChild(f);
         f.submit();
     }
+}
+
+function editarChofer(id) {
+    document.getElementById('edit_chofer_id').value = id;
+    document.getElementById('edit_nombre_chofer').value = document.getElementById('chofer_nombre_' + id).innerText;
+    document.getElementById('edit_placas_chofer').value = document.getElementById('chofer_placas_' + id).innerText;
+    document.getElementById('edit_noe_chofer').value = document.getElementById('chofer_noe_' + id).innerText;
+    document.getElementById('editarChoferForm').style.display = 'block';
+    document.getElementById('editarChoferForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelarEditarChofer() {
+    document.getElementById('editarChoferForm').style.display = 'none';
+}
+
+function editarAuxiliar(id) {
+    document.getElementById('edit_auxiliar_id').value = id;
+    document.getElementById('edit_nombre_auxiliar').value = document.getElementById('aux_nombre_' + id).innerText;
+    document.getElementById('editarAuxiliarForm').style.display = 'block';
+    document.getElementById('editarAuxiliarForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelarEditarAuxiliar() {
+    document.getElementById('editarAuxiliarForm').style.display = 'none';
 }
 
 function editarDestino(id) {
