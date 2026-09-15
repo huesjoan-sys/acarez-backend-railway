@@ -21,7 +21,7 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
     $fecha_inicio = date('Y-m-d', strtotime($year . 'W' . $week . '1'));
     $fecha_fin = date('Y-m-d', strtotime($year . 'W' . $week . '7'));
     
-    $sql = "SELECT r.id, r.fecha_inicio AS fecha, r.chofer, r.placas, r.origen, r.km_inicial, r.km_final, r.km_total,
+    $sql = "SELECT r.id, r.numero_ruta, r.fecha_inicio AS fecha, r.chofer, r.placas, r.origen, r.km_inicial, r.km_final, r.km_total,
                    (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.ruta_id = r.id) AS total_general 
             FROM rutas r 
             WHERE DATE(r.fecha_inicio) BETWEEN '$fecha_inicio' AND '$fecha_fin' 
@@ -35,6 +35,7 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
         $total_gastos_semana += $gasto;
         $viajes[] = [
             'id' => $row['id'],
+            'numero_ruta' => $row['numero_ruta'] ?? '',
             'fecha' => date('d/m/Y H:i', strtotime($row['fecha'])),
             'chofer' => $row['chofer'],
             'placas' => $row['placas'],
@@ -213,6 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // ========== CREAR RUTA (Con redirección PRG para evitar duplicados al refrescar) ==========
     if (isset($_POST['crear_ruta'])) {
+        $numero_ruta = trim($_POST['numero_ruta'] ?? '');
         $chofer_id = intval($_POST['chofer_id']);
         $auxiliar_nombre = trim($_POST['auxiliar_nombre'] ?? '');
         $fecha_ruta = $_POST['fecha_ruta'] ?? date('Y-m-d');
@@ -226,9 +228,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if ($chofer) {
                 $fecha_inicio = $fecha_ruta . ' 00:00:00';
                 
-                $stmt = $conn->prepare("INSERT INTO rutas (chofer, auxiliar, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, ?, 0, 'programada')");
+                $stmt = $conn->prepare("INSERT INTO rutas (numero_ruta, chofer, auxiliar, placas, no_economico, origen, fecha_inicio, km_inicial, estatus) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'programada')");
                 $origen = 'Pendiente';
-                $stmt->bind_param("ssssss", $chofer['nombre_chofer'], $auxiliar_nombre, $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
+                $stmt->bind_param("sssssss", $numero_ruta, $chofer['nombre_chofer'], $auxiliar_nombre, $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
                 $stmt->execute();
                 $ruta_id = $conn->insert_id;
                 $stmt->close();
@@ -813,6 +815,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <thead>
                             <tr>
                                 <th>ID Ruta</th>
+                                <th>No. Ruta</th>
                                 <th>Fecha Inicio</th>
                                 <th>Chofer</th>
                                 <th>Placas</th>
@@ -837,7 +840,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             
                             if ($fecha_actual != '' && $fecha_actual != $fecha_row) {
                                 echo '<tr class="resumen-dia">
-                                        <td colspan="7" style="text-align:right;">Total Km del día ' . date('d/m/Y', strtotime($fecha_actual)) . ':</td>
+                                        <td colspan="8" style="text-align:right;">Total Km del día ' . date('d/m/Y', strtotime($fecha_actual)) . ':</td>
                                         <td colspan="1">' . number_format($suma_km_dia, 0) . ' km</td>
                                         <td colspan="3"></td>
                                       </tr>';
@@ -848,6 +851,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         ?>
                             <tr>
                                 <td><strong>#<?= $row['id'] ?></strong></td>
+                                <td><span style="font-weight:bold; color:#4A148C;"><?= htmlspecialchars($row['numero_ruta'] ?? '') ?></span></td>
                                 <td><?= date('d/m/Y H:i', strtotime($row['fecha_inicio'])) ?></td>
                                 <td><?= htmlspecialchars($row['chofer']) ?></td>
                                 <td><?= htmlspecialchars($row['placas']) ?></td>
@@ -873,7 +877,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <?php endforeach; ?>
                         <?php if ($fecha_actual != ''): ?>
                             <tr class="resumen-dia">
-                                <td colspan="7" style="text-align:right;">Total Km del día <?= date('d/m/Y', strtotime($fecha_actual)) ?>:</td>
+                                <td colspan="8" style="text-align:right;">Total Km del día <?= date('d/m/Y', strtotime($fecha_actual)) ?>:</td>
                                 <td colspan="1"><?= number_format($suma_km_dia, 0) ?> km</td>
                                 <td colspan="3"></td>
                             </tr>
@@ -919,6 +923,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <form method="POST" class="form-inline" style="flex-wrap: wrap; gap: 10px;">
                 <input type="hidden" name="crear_ruta" value="1">
                 <div style="display:flex; flex-direction:column; gap:8px; min-width: 250px;">
+                    <!-- NUEVO CAMPO: Número de Ruta -->
+                    <input type="text" name="numero_ruta" placeholder="Número de ruta (ej. R-01)" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+
                     <select name="chofer_id" required style="width: 100%;">
                         <option value="">-- Seleccionar Chofer --</option>
                         <?php while($row = $choferes->fetch_assoc()): ?>
@@ -989,6 +996,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <thead>
                             <tr>
                                 <th>ID</th>
+                                <th>No. Ruta</th>
                                 <th>Chofer</th>
                                 <th>Auxiliar</th>
                                 <th>Placas</th>
@@ -1019,6 +1027,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             ?>
                             <tr>
                                 <td><?= $row['id'] ?></td>
+                                <td><strong><?= htmlspecialchars($row['numero_ruta'] ?? '') ?></strong></td>
                                 <td><?= htmlspecialchars($row['chofer']) ?></td>
                                 <td><?= !empty($row['auxiliar']) ? htmlspecialchars($row['auxiliar']) : '<span style="color:#aaa;">Sin auxiliar</span>' ?></td>
                                 <td><?= htmlspecialchars($row['placas']) ?></td>
@@ -1435,8 +1444,9 @@ function verDetalleRuta(id) {
             
             body.innerHTML = `
                 <span class="cerrar-modal" onclick="cerrarModal()">&times;</span>
-                <h2 style="color:#4A148C;">📋 Detalle de Ruta #${r.id}</h2>
+                <h2 style="color:#4A148C;">📋 Detalle de Ruta #${r.id} ${r.numero_ruta ? '(' + r.numero_ruta + ')' : ''}</h2>
                 <div style="background:#f5f5f5; padding:15px; border-radius:10px; margin:10px 0;">
+                    <p><strong>Número de Ruta:</strong> ${r.numero_ruta || 'No asignado'}</p>
                     <p><strong>Chofer:</strong> ${r.chofer}</p>
                     <p><strong>Auxiliar:</strong> ${r.auxiliar ? r.auxiliar : 'Sin auxiliar'}</p>
                     <p><strong>Vehículo:</strong> ${r.placas} | ${r.no_economico}</p>
@@ -1515,13 +1525,14 @@ document.getElementById('btnDetalleSemana')?.addEventListener('click', function(
                 html += '<div style="overflow-x: auto;">';
                 html += '<table class="tabla-semana" style="width:100%; border-collapse:collapse;">';
                 html += '<thead><tr style="background:#4A148C; color:white;">';
-                html += '<th>ID Ruta</th><th>Fecha Inicio</th><th>Chofer</th><th>Placas</th><th>Origen</th>';
+                html += '<th>ID Ruta</th><th>No. Ruta</th><th>Fecha Inicio</th><th>Chofer</th><th>Placas</th><th>Origen</th>';
                 html += '<th>Km Inicial</th><th>Km Final</th><th>Km Total</th><th>Total Gastos</th>';
                 html += '</tr></thead><tbody>';
                 
                 data.viajes.forEach(v => {
                     html += `<tr>
                         <td style="white-space:nowrap;">#${v.id}</td>
+                        <td style="white-space:nowrap;">${v.numero_ruta}</td>
                         <td style="white-space:nowrap;">${v.fecha}</td>
                         <td style="white-space:nowrap;">${v.chofer}</td>
                         <td style="white-space:nowrap;">${v.placas}</td>
