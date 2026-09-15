@@ -58,7 +58,7 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
 }
 
 // ==============================================
-// 2. OBTENER DATOS DE RUTA CON PARADAS Y GASTOS
+// 2. OBTENER DATOS DE RUTA CON PARADAS, GASTOS Y CUCAS
 // ==============================================
 if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     header('Content-Type: application/json');
@@ -83,6 +83,14 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     while ($g = $res_lista_gastos->fetch_assoc()) {
         $gastos[] = $g;
     }
+
+    // Obtener lista de cucas (facturas) de esta ruta
+    $sql_lista_cucas = "SELECT id, parada_id, numero_cuca, foto_cuca, fecha FROM cucas WHERE ruta_id = $ruta_id ORDER BY id DESC";
+    $res_lista_cucas = $conn->query($sql_lista_cucas);
+    $cucas = [];
+    while ($c = $res_lista_cucas->fetch_assoc()) {
+        $cucas[] = $c;
+    }
     
     $paradas_sql = "SELECT p.*, d.razon_social, d.sucursal, d.direccion 
                     FROM paradas p 
@@ -100,6 +108,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         'ruta' => $ruta,
         'paradas' => $paradas,
         'gastos' => $gastos,
+        'cucas' => $cucas,
         'total_gastos' => $total_gastos
     ]);
     exit;
@@ -1387,6 +1396,7 @@ function verDetalleRuta(id) {
             const r = data.ruta;
             const paradas = data.paradas || [];
             const gastos = data.gastos || [];
+            const cucas = data.cucas || []; // 👈 Lista de facturas / cucas obtenidas
             
             const prepararSrc = (img) => {
                 if (!img || img.trim() === '') return '';
@@ -1405,10 +1415,12 @@ function verDetalleRuta(id) {
                 
                 const destinoNombre = p.razon_social ? `${p.razon_social} - ${p.sucursal}` : (p.destino_manual || 'Destino');
                 const gastosParada = gastos.filter(g => g.parada_id == p.id);
+                const cucasParada = cucas.filter(c => c.parada_id == p.id); // 👈 Cucas correspondientes a esta parada
                 
                 let gastosDetalleHtml = '';
                 if (gastosParada.length > 0) {
                     gastosDetalleHtml = '<div style="margin-top:8px; padding-left:15px; border-left:2px solid #4A148C; font-size:13px;">';
+                    gastosDetalleHtml += '<p style="font-weight:bold; color:#4A148C; margin-bottom:4px;">💰 Gastos:</p>';
                     gastosParada.forEach(gp => {
                         gastosDetalleHtml += `<div style="margin-bottom: 6px;">• <strong>${gp.concepto}:</strong> $${parseFloat(gp.monto).toFixed(2)}`;
                         
@@ -1420,8 +1432,26 @@ function verDetalleRuta(id) {
                         gastosDetalleHtml += `</div>`;
                     });
                     gastosDetalleHtml += '</div>';
+                }
+
+                // 📄 Renderizado de Cucas (Facturas) por parada
+                let cucasDetalleHtml = '';
+                if (cucasParada.length > 0) {
+                    cucasDetalleHtml = '<div style="margin-top:10px; padding-left:15px; border-left:2px solid #2e7d32; font-size:13px;">';
+                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:4px;">📄 Facturas / Cucas Entregadas:</p>';
+                    cucasParada.forEach(cp => {
+                        cucasDetalleHtml += `<div style="margin-bottom: 8px;">• <strong>No. Cuca:</strong> ${cp.numero_cuca}`;
+                        
+                        if (cp.foto_cuca && cp.foto_cuca.trim() !== '') {
+                            let fotoCucaSrc = prepararSrc(cp.foto_cuca);
+                            cucasDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoCucaSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #ddd;" onclick="verImagenGrande('${fotoCucaSrc}')" title="Ver foto de Cuca sellada"></div>`;
+                        }
+                        
+                        cucasDetalleHtml += `</div>`;
+                    });
+                    cucasDetalleHtml += '</div>';
                 } else {
-                    gastosDetalleHtml = '<div style="margin-top:4px; font-size:12px; color:#888;">Sin gastos registrados en esta parada</div>';
+                    cucasDetalleHtml = '<div style="margin-top:6px; font-size:12px; color:#888;">Sin cucas (facturas) registradas en esta parada</div>';
                 }
 
                 const bgColor = esCompletado ? '#e8f5e9' : '#ffffff';
@@ -1437,6 +1467,7 @@ function verDetalleRuta(id) {
                             ${badgeEstado}
                         </div>
                         <div style="font-size:13px; color:#555; margin-top:4px;">📍 ${p.direccion || ''}</div>
+                        ${cucasDetalleHtml}
                         ${gastosDetalleHtml}
                     </div>
                 `;
@@ -1466,7 +1497,7 @@ function verDetalleRuta(id) {
                     <p style="margin-top:10px;"><strong>Total de Gastos de la Ruta:</strong> <span style="color:green; font-weight:bold;">$${parseFloat(r.total_gastos || 0).toFixed(2)}</span></p>
                     <p><strong>Estatus General:</strong> <span class="badge badge-${r.estatus}">${r.estatus}</span></p>
                 </div>
-                <h3 style="margin-top:15px; margin-bottom:10px;">📍 Destinos y Gastos por Parada</h3>
+                <h3 style="margin-top:15px; margin-bottom:10px;">📍 Destinos, Cucas y Gastos por Parada</h3>
                 ${paradasHtml}
             `;
         })

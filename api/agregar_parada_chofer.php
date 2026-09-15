@@ -22,11 +22,16 @@ if ($parada_id <= 0) {
     exit;
 }
 
-// Configuración del directorio para guardar las fotos en el servidor
-// Asegúrate de que esta ruta exista y tenga permisos de escritura
-$upload_dir = '../uploads/gastos/';
-if (!is_dir($upload_dir)) {
-    mkdir($upload_dir, 0777, true);
+// Configuración del directorio para guardar las fotos de gastos en el servidor
+$upload_dir_gastos = '../uploads/gastos/';
+if (!is_dir($upload_dir_gastos)) {
+    mkdir($upload_dir_gastos, 0777, true);
+}
+
+// Configuración del directorio para guardar las fotos de las cucas (facturas) en el servidor
+$upload_dir_cucas = '../uploads/cucas/';
+if (!is_dir($upload_dir_cucas)) {
+    mkdir($upload_dir_cucas, 0777, true);
 }
 
 try {
@@ -50,14 +55,12 @@ try {
     $conn->begin_transaction();
 
     // 2. Actualizar el estado de la parada y el kilometraje
-    // Ya no intentamos guardar gastos aquí porque la tabla 'paradas' no tiene esas columnas
     $stmtParada = $conn->prepare("UPDATE paradas SET estatus = 'completada', completada = 1, km_actual = ? WHERE id = ?");
     $stmtParada->bind_param("di", $km_actual, $parada_id);
     $stmtParada->execute();
     $stmtParada->close();
 
-    // 3. Procesar Gastos y Fotos
-    // Mapeamos los conceptos con los nombres de las variables que llegarán desde Flutter
+    // 3. Procesar Gastos y Fotos de Gastos
     $conceptos_keys = [
         'Hotel / Hospedaje' => 'hotel',
         'Caseta'            => 'caseta',
@@ -68,7 +71,6 @@ try {
 
     $total_nuevos_gastos = 0;
     
-    // Preparamos el insert usando parada_id y la ruta de la foto que es varchar(255)
     $stmtGasto = $conn->prepare("INSERT INTO gastos (ruta_id, parada_id, concepto, monto, foto, fecha) VALUES (?, ?, ?, ?, ?, NOW())");
 
     foreach ($conceptos_keys as $concepto_nombre => $key) {
@@ -76,19 +78,16 @@ try {
         
         if ($monto > 0) {
             $total_nuevos_gastos += $monto;
-            $ruta_foto_bd = null; // Si no hay foto, se inserta como NULL
+            $ruta_foto_bd = null;
 
-            // Verificar si el chofer adjuntó una imagen para este gasto en específico
             if (isset($_FILES["foto_$key"]) && $_FILES["foto_$key"]['error'] === UPLOAD_ERR_OK) {
                 $tmp_name = $_FILES["foto_$key"]['tmp_name'];
                 $extension = strtolower(pathinfo($_FILES["foto_$key"]['name'], PATHINFO_EXTENSION));
                 
-                // Generar un nombre único para evitar que las fotos se sobreescriban
                 $nuevo_nombre_archivo = "gasto_{$ruta_id}_{$parada_id}_{$key}_" . time() . "." . $extension;
-                $destino_final = $upload_dir . $nuevo_nombre_archivo;
+                $destino_final = $upload_dir_gastos . $nuevo_nombre_archivo;
                 
                 if (move_uploaded_file($tmp_name, $destino_final)) {
-                    // Guardamos la ruta relativa para la base de datos
                     $ruta_foto_bd = "uploads/gastos/" . $nuevo_nombre_archivo;
                 }
             }
@@ -99,7 +98,38 @@ try {
     }
     $stmtGasto->close();
 
-    // 4. Actualizar total_gastos en la ruta solo si hubo gastos nuevos
+    // 4. Procesar Cucas (Facturas) enviadas desde la app
+    // Esperamos un conteo o un recorrido de cucas enviadas por índice (ej: numero_cuca_0, numero_cuca_1...)
+    $stmtCuca = $conn->prepare("INSERT INTO cucas (ruta_id, parada_id, numero_cuca, foto_cuca, fecha) VALUES (?, ?, ?, ?, NOW())");
+    
+    $i = 0;
+    while (isset($_POST["numero_cuca_$i"])) {
+        $numero_cuca = trim($_POST["numero_cuca_$i"]);
+        
+        if (!empty($numero_cuca)) {
+            $ruta_foto_cuca_bd = "";
+
+            // Verificar si hay archivo de imagen para esta cuca en específico
+            if (isset($_FILES["foto_cuca_$i"]) && $_FILES["foto_cuca_$i"]['error'] === UPLOAD_ERR_OK) {
+                $tmp_name_cuca = $_FILES["foto_cuca_$i"]['tmp_name'];
+                $extension_cuca = strtolower(pathinfo($_FILES["foto_cuca_$i"]['name'], PATHINFO_EXTENSION));
+                
+                $nuevo_nombre_cuca = "cuca_{$ruta_id}_{$parada_id}_" . time() . "_{$i}." . $extension_cuca;
+                $destino_final_cuca = $upload_dir_cucas . $nuevo_nombre_cuca;
+                
+                if (move_uploaded_file($tmp_name_cuca, $destino_final_cuca)) {
+                    $ruta_foto_cuca_bd = "uploads/cucas/" . $nuevo_nombre_cuca;
+                }
+            }
+
+            $stmtCuca->bind_param("iiss", $ruta_id, $parada_id, $numero_cuca, $ruta_foto_cuca_bd);
+            $stmtCuca->execute();
+        }
+        $i++;
+    }
+    $stmtCuca->close();
+
+    // 5. Actualizar total_gastos en la ruta solo si hubo gastos nuevos
     if ($total_nuevos_gastos > 0) {
         $stmtRutaUpdate = $conn->prepare("UPDATE rutas SET total_gastos = total_gastos + ? WHERE id = ?");
         $stmtRutaUpdate->bind_param("di", $total_nuevos_gastos, $ruta_id);
@@ -112,11 +142,10 @@ try {
 
     echo json_encode([
         'success' => true,
-        'mensaje' => '✅ Parada completada y gastos registrados correctamente'
+        'mensaje' => '✅ Parada completada, gastos y cucas registrados correctamente'
     ]);
 
 } catch (mysqli_sql_exception $e) {
-    // Si algo falla (ej. base de datos), revertimos todo
     $conn->rollback();
     error_log("Error de BD en agregar_parada_chofer: " . $e->getMessage());
     echo json_encode(['success' => false, 'mensaje' => '❌ Error interno al procesar la parada.']);
