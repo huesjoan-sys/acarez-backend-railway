@@ -758,7 +758,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </div>
 
 <div id="imageModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:3000; align-items:center; justify-content:center;" onclick="cerrarImageModal()">
-    <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer;">&times;</span>
+    <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer;" onclick="cerrarImageModal()">&times;</span>
     <img id="modalImage" style="max-width:90%; max-height:90%; border-radius:10px;">
 </div>
 
@@ -1476,14 +1476,38 @@ function cerrarSemanaModal() {
 }
 
 function cerrarImageModal() {
-    document.getElementById('imageModal').style.display = 'none';
+    const modal = document.getElementById('imageModal');
+    modal.style.display = 'none';
 }
 
+// Vista estándar para fotos simples
 function verImagenGrande(src) {
     const modal = document.getElementById('imageModal');
-    const modalImg = document.getElementById('modalImage');
     modal.style.display = 'flex';
-    modalImg.src = src;
+    modal.innerHTML = `
+        <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer;" onclick="cerrarImageModal()">&times;</span>
+        <img id="modalImage" src="${src}" style="max-width:90%; max-height:90%; border-radius:10px;">
+    `;
+}
+
+// Vista con Marca de Agua Flotante para Cucas
+function verImagenGrandeConMarca(src, ruta, chofer, cuca, fecha) {
+    const modal = document.getElementById('imageModal');
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer;" onclick="cerrarImageModal()">&times;</span>
+        <div style="position:relative; max-width:90%; max-height:90%; display:inline-block;" onclick="event.stopPropagation()">
+            <img id="modalImage" src="${src}" style="max-width:100%; max-height:85vh; border-radius:10px; display:block;">
+            
+            <!-- Marca de agua superpuesta en la foto -->
+            <div style="position:absolute; bottom:15px; left:15px; background:rgba(0,0,0,0.8); color:#ffffff; padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.3; font-family:sans-serif; border-left:4px solid #2e7d32; box-shadow:0 3px 10px rgba(0,0,0,0.5); text-align:left;">
+                <div><strong>Ruta:</strong> ${ruta}</div>
+                <div><strong>Chofer:</strong> ${chofer}</div>
+                <div><strong>Cuca:</strong> ${cuca}</div>
+                <div><strong>Fecha:</strong> ${fecha}</div>
+            </div>
+        </div>
+    `;
 }
 
 // 🪟 CONTROL DE VENTANAS EMERGENTES (MODALES) PARA EDICIÓN
@@ -1595,21 +1619,27 @@ function verDetalleRuta(id) {
                     gastosDetalleHtml += '</div>';
                 }
 
-                // 📄 Renderizado exclusivo de Foto de Cuca: Ruta, Chofer, Cuca y Fecha
+                // 📄 Renderizado exclusivo de Cucas con interlineado reducido y marca de agua
                 let cucasDetalleHtml = '';
                 if (cucasParada.length > 0) {
-                    cucasDetalleHtml = '<div style="margin-top:10px; padding:10px; border-left:3px solid #2e7d32; background:#f4fbf4; border-radius:6px; font-size:13px;">';
-                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:8px;">📄 Datos del Comprobante (Cuca):</p>';
+                    cucasDetalleHtml = '<div style="margin-top:6px; padding:6px 10px; border-left:3px solid #2e7d32; background:#f4fbf4; border-radius:6px; font-size:12px; line-height:1.2;">';
+                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:4px; font-size:12px;">📄 Datos del Comprobante (Cuca):</p>';
                     cucasParada.forEach(cp => {
-                        cucasDetalleHtml += `<div style="margin-bottom: 10px; line-height: 1.6;">
-                            <div>• <strong>Ruta:</strong> ${r.numero_ruta ? r.numero_ruta : '#' + r.id}</div>
+                        const numRuta = r.numero_ruta ? r.numero_ruta : '#' + r.id;
+                        const choferEsc = (r.chofer || '').replace(/'/g, "\\'");
+                        const numRutaEsc = (numRuta || '').replace(/'/g, "\\'");
+                        const cucaEsc = (cp.numero_cuca || '').replace(/'/g, "\\'");
+                        const fechaEsc = (cp.fecha || '').replace(/'/g, "\\'");
+
+                        cucasDetalleHtml += `<div style="margin-bottom: 6px; line-height: 1.25;">
+                            <div>• <strong>Ruta:</strong> ${numRuta}</div>
                             <div>• <strong>Chofer:</strong> ${r.chofer}</div>
                             <div>• <strong>Cuca:</strong> ${cp.numero_cuca}</div>
                             <div>• <strong>Fecha:</strong> ${cp.fecha}</div>`;
                         
                         if (cp.foto_cuca && cp.foto_cuca.trim() !== '') {
                             let fotoCucaSrc = prepararSrc(cp.foto_cuca);
-                            cucasDetalleHtml += `<div style="margin-top: 6px;"><img src="${fotoCucaSrc}" style="width: 90px; height: 90px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrande('${fotoCucaSrc}')" title="Ver foto completa"></div>`;
+                            cucasDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoCucaSrc}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '${numRutaEsc}', '${choferEsc}', '${cucaEsc}', '${fechaEsc}')" title="Ver foto con marca de agua"></div>`;
                         }
                         
                         cucasDetalleHtml += `</div>`;
