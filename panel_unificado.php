@@ -199,47 +199,50 @@ function manejarCatalogos($conn) {
 // ==============================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
-    // ========== GESTIÓN DE ACCESOS APP (USUARIOS APP) ==========
+    // ========== GESTIÓN DE ACCESOS APP Y CHOFERES (TABLA CHOFERES) ==========
     if (isset($_POST['accion_usuario_app'])) {
         $sub_accion = $_POST['accion_usuario_app'];
 
         if ($sub_accion === 'guardar') {
             $id = $_POST['id'] ?? '';
-            $usuario = trim($_POST['nombre_usuario'] ?? '');
+            $nombre = trim($_POST['nombre_chofer'] ?? '');
             $pin = trim($_POST['pin_password'] ?? '');
-            $nombreCompleto = trim($_POST['nombre_completo'] ?? '');
+            $placas = trim($_POST['placas'] ?? 'PENDIENTE');
+            $no_eco = trim($_POST['numero_economico'] ?? 'PENDIENTE');
 
-            if (!empty($usuario) && !empty($pin) && !empty($nombreCompleto)) {
+            if (!empty($nombre) && !empty($pin)) {
                 try {
                     if (!empty($id)) {
-                        $stmt = $pdo->prepare("UPDATE usuarios_app SET nombre_usuario = ?, pin_password = ?, nombre_completo = ? WHERE id = ?");
-                        $stmt->execute([$usuario, $pin, $nombreCompleto, $id]);
-                        $_SESSION['mensaje_exito'] = "✅ Usuario de app actualizado correctamente.";
+                        $stmt = $pdo->prepare("UPDATE choferes SET nombre_chofer = ?, pin_password = ?, placas = ?, numero_economico = ? WHERE id = ?");
+                        $stmt->execute([$nombre, $pin, $placas, $no_eco, $id]);
+                        $_SESSION['mensaje_exito'] = "✅ Chofer actualizado correctamente.";
                     } else {
-                        $stmt = $pdo->prepare("INSERT INTO usuarios_app (nombre_usuario, pin_password, nombre_completo) VALUES (?, ?, ?)");
-                        $stmt->execute([$usuario, $pin, $nombreCompleto]);
-                        $_SESSION['mensaje_exito'] = "✅ Chofer registrado para acceso a la app.";
+                        $stmt = $pdo->prepare("INSERT INTO choferes (nombre_chofer, placas, numero_economico, pin_password, activo) VALUES (?, ?, ?, ?, 1)");
+                        $stmt->execute([$nombre, $placas, $no_eco, $pin]);
+                        $_SESSION['mensaje_exito'] = "✅ Chofer registrado correctamente.";
                     }
                 } catch (Exception $e) {
-                    $_SESSION['mensaje_error'] = "❌ Error: El usuario ya existe o hubo un fallo en la BD.";
+                    $_SESSION['mensaje_error'] = "❌ Error al guardar en la base de datos.";
                 }
             } else {
-                $_SESSION['mensaje_error'] = "❌ Todos los campos son obligatorios.";
+                $_SESSION['mensaje_error'] = "❌ El nombre y el PIN son obligatorios.";
             }
+            header("Location: ?seccion=usuarios_app");
+            exit;
         } elseif ($sub_accion === 'eliminar') {
             $id = $_POST['id'] ?? '';
             if (!empty($id)) {
                 try {
-                    $stmt = $pdo->prepare("DELETE FROM usuarios_app WHERE id = ?");
+                    $stmt = $pdo->prepare("DELETE FROM choferes WHERE id = ?");
                     $stmt->execute([$id]);
-                    $_SESSION['mensaje_exito'] = "🗑️ Chofer eliminado de los accesos de la app.";
+                    $_SESSION['mensaje_exito'] = "🗑️ Chofer eliminado del sistema.";
                 } catch (Exception $e) {
-                    $_SESSION['mensaje_error'] = "❌ Error al eliminar el acceso.";
+                    $_SESSION['mensaje_error'] = "❌ Error al eliminar el chofer.";
                 }
             }
+            header("Location: ?seccion=usuarios_app");
+            exit;
         }
-        header("Location: ?seccion=usuarios_app");
-        exit;
     }
 
     // ========== REGISTRAR GASTOS DESDE FLUTTER ==========
@@ -1163,74 +1166,78 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         try {
-            $stmt_u = $pdo->query("SELECT * FROM usuarios_app ORDER BY id DESC");
-            $usuarios_app = $stmt_u->fetchAll();
+            $stmt_u = $pdo->query("SELECT * FROM choferes ORDER BY id DESC");
+            $choferes_app = $stmt_u->fetchAll();
         } catch (Exception $e) {
-            $usuarios_app = [];
+            $choferes_app = [];
         }
         ?>
         <div class="card">
-            <h2>📱 Gestión de Accesos App (Choferes)</h2>
-            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Administra los usuarios y contraseñas (PIN) con los que los choferes inician sesión en la aplicación móvil.</p>
+            <h2>📱 Gestión de Accesos App y Choferes</h2>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Administra los choferes, sus PINs de acceso a la aplicación móvil, placas y número económico.</p>
 
             <!-- Formulario para Registrar / Editar -->
             <div class="card shadow-sm mb-4" style="background: #fafafa; border: 1px solid #eee;">
                 <div class="card-body">
-                    <h5 class="mb-3" style="color: #4A148C; font-size: 16px;">Registrar o Modificar Acceso</h5>
+                    <h5 class="mb-3" style="color: #4A148C; font-size: 16px;">Registrar o Modificar Chofer</h5>
                     <form method="POST" class="row g-3" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
                         <input type="hidden" name="accion_usuario_app" value="guardar">
                         <input type="hidden" name="id" id="form-id">
 
-                        <div style="flex: 1; min-width: 200px;">
-                            <label style="font-size: 12px; font-weight: bold;">Nombre de Usuario (Login)</label>
-                            <input type="text" class="form-control" name="nombre_usuario" id="form-usuario" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                        <div style="flex: 2; min-width: 200px;">
+                            <label style="font-size: 12px; font-weight: bold;">Nombre Completo</label>
+                            <input type="text" class="form-control" name="nombre_chofer" id="form-nombre" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
                         </div>
-                        <div style="flex: 1; min-width: 150px;">
-                            <label style="font-size: 12px; font-weight: bold;">PIN Numérico (Contraseña)</label>
+                        <div style="flex: 1; min-width: 130px;">
+                            <label style="font-size: 12px; font-weight: bold;">PIN (Contraseña)</label>
                             <input type="text" class="form-control" name="pin_password" id="form-pin" maxlength="6" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
                         </div>
-                        <div style="flex: 2; min-width: 250px;">
-                            <label style="font-size: 12px; font-weight: bold;">Nombre Completo</label>
-                            <input type="text" class="form-control" name="nombre_completo" id="form-nombre" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                        <div style="flex: 1; min-width: 130px;">
+                            <label style="font-size: 12px; font-weight: bold;">Placas</label>
+                            <input type="text" class="form-control" name="placas" id="form-placas" value="PENDIENTE" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                        </div>
+                        <div style="flex: 1; min-width: 130px;">
+                            <label style="font-size: 12px; font-weight: bold;">No. Económico</label>
+                            <input type="text" class="form-control" name="numero_economico" id="form-no-eco" value="PENDIENTE" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
                         </div>
                         <div>
-                            <button type="submit" class="btn btn-success" style="background-color: #4A148C; border: none; height: 38px;">💾 Guardar Acceso</button>
-                            <button type="button" class="btn btn-warning" onclick="limpiarFormUsuarioApp()" style="height: 38px; display:none;" id="btnCancelarEdicion">Cancelar</button>
+                            <button type="submit" class="btn btn-success" style="background-color: #4A148C; border: none; height: 38px;">💾 Guardar</button>
+                            <button type="button" class="btn btn-warning" onclick="limpiarFormChoferApp()" style="height: 38px; display:none;" id="btnCancelarEdicion">Cancelar</button>
                         </div>
                     </form>
                 </div>
             </div>
 
-            <!-- Tabla de Usuarios -->
+            <!-- Tabla de Choferes -->
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
                         <tr style="background: #4A148C; color: white;">
                             <th>ID</th>
-                            <th>Usuario</th>
-                            <th>PIN (Contraseña)</th>
                             <th>Nombre Completo</th>
-                            <th>Fecha Registro</th>
-                            <th class="text-end">Acciones</th>
+                            <th>PIN</th>
+                            <th>Placas</th>
+                            <th>No. Económico</th>
+                            <th style="text-align: right;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (empty($usuarios_app)): ?>
-                            <tr><td colspan="6" class="text-center py-4" style="text-align:center; padding:20px; color:#888;">No hay choferes con acceso registrado a la app.</td></tr>
+                        <?php if (empty($choferes_app)): ?>
+                            <tr><td colspan="6" style="text-align:center; padding:20px; color:#888;">No hay choferes registrados.</td></tr>
                         <?php else: ?>
-                            <?php foreach ($usuarios_app as $u): ?>
+                            <?php foreach ($choferes_app as $c): ?>
                                 <tr>
-                                    <td><?= $u['id'] ?></td>
-                                    <td><strong><?= htmlspecialchars($u['nombre_usuario']) ?></strong></td>
-                                    <td><code><?= htmlspecialchars($u['pin_password']) ?></code></td>
-                                    <td><?= htmlspecialchars($u['nombre_completo']) ?></td>
-                                    <td><?= $u['fecha_creacion'] ?></td>
+                                    <td><?= $c['id'] ?></td>
+                                    <td><strong><?= htmlspecialchars($c['nombre_chofer']) ?></strong></td>
+                                    <td><code><?= htmlspecialchars($c['pin_password'] ?? '1234') ?></code></td>
+                                    <td><?= htmlspecialchars($c['placas']) ?></td>
+                                    <td><?= htmlspecialchars($c['numero_economico']) ?></td>
                                     <td style="text-align: right;">
-                                        <button class="btn btn-warning btn-pequeno" onclick="editarUsuarioApp(<?= $u['id'] ?>, '<?= htmlspecialchars($u['nombre_usuario'], ENT_QUOTES) ?>', '<?= htmlspecialchars($u['pin_password'], ENT_QUOTES) ?>', '<?= htmlspecialchars($u['nombre_completo'], ENT_QUOTES) ?>')">✏️ Editar / PIN</button>
-                                        <form method="POST" class="d-inline" style="display:inline;" onsubmit="return confirm('¿Estás seguro de eliminar este acceso? El chofer no podrá iniciar sesión.');">
+                                        <button class="btn btn-warning btn-pequeno" onclick="editarChoferApp(<?= $c['id'] ?>, '<?= htmlspecialchars($c['nombre_chofer'], ENT_QUOTES) ?>', '<?= htmlspecialchars($c['pin_password'] ?? '1234', ENT_QUOTES) ?>', '<?= htmlspecialchars($c['placas'], ENT_QUOTES) ?>', '<?= htmlspecialchars($c['numero_economico'], ENT_QUOTES) ?>')">✏️ Editar</button>
+                                        <form method="POST" style="display:inline;" onsubmit="return confirm('¿Estás seguro de eliminar este chofer?');">
                                             <input type="hidden" name="accion_usuario_app" value="eliminar">
-                                            <input type="hidden" name="id" value="<?= $u['id'] ?>">
-                                            <button type="submit" class="btn btn-danger btn-pequeno">🗑️ Eliminar</button>
+                                            <input type="hidden" name="id" value="<?= $c['id'] ?>">
+                                            <button type="submit" class="btn btn-danger btn-pequeno">🗑️</button>
                                         </form>
                                     </td>
                                 </tr>
@@ -1514,21 +1521,23 @@ function cerrarEditarDestinoModal() {
     document.getElementById('editarDestinoModal').style.display = 'none';
 }
 
-// Funciones para gestionar usuarios app desde el panel unificado
-function editarUsuarioApp(id, usuario, pin, nombre) {
+// Funciones para gestionar choferes y accesos app desde el panel unificado
+function editarChoferApp(id, nombre, pin, placas, noEco) {
     document.getElementById('form-id').value = id;
-    document.getElementById('form-usuario').value = usuario;
-    document.getElementById('form-pin').value = pin;
     document.getElementById('form-nombre').value = nombre;
+    document.getElementById('form-pin').value = pin;
+    document.getElementById('form-placas').value = placas;
+    document.getElementById('form-no-eco').value = noEco;
     document.getElementById('btnCancelarEdicion').style.display = 'inline-block';
     window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
-function limpiarFormUsuarioApp() {
+function limpiarFormChoferApp() {
     document.getElementById('form-id').value = '';
-    document.getElementById('form-usuario').value = '';
-    document.getElementById('form-pin').value = '';
     document.getElementById('form-nombre').value = '';
+    document.getElementById('form-pin').value = '';
+    document.getElementById('form-placas').value = 'PENDIENTE';
+    document.getElementById('form-no-eco').value = 'PENDIENTE';
     document.getElementById('btnCancelarEdicion').style.display = 'none';
 }
 
