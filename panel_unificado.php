@@ -1640,7 +1640,7 @@ function verDetalleRuta(id) {
             
             body.innerHTML = `
                 <span class="cerrar-modal" onclick="cerrarModal()">&times;</span>
-                <h2 style="color:#4A148C;">📋 Detalle de Ruta: ${r.numero_ruta ? r.numero_ruta : '#' + r.id} <span style="font-size:16px; color:#666;">(ID: #${r.id})</span></h2>
+                <h2 style="color:#4A148C;">📋 Detalle de Ruta #${r.numero_ruta || r.id}</h2>
                 <div style="background:#f5f5f5; padding:15px; border-radius:10px; margin:10px 0;">
                     <p><strong>Número de Ruta:</strong> ${r.numero_ruta || 'No asignado'}</p>
                     <p><strong>Chofer:</strong> ${r.chofer}</p>
