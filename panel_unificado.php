@@ -1557,7 +1557,7 @@ function verDetalleRuta(id) {
             const r = data.ruta;
             const paradas = data.paradas || [];
             const gastos = data.gastos || [];
-            const cucas = data.cucas || []; // 👈 Lista de facturas / cucas obtenidas
+            const cucas = data.cucas || [];
             
             const prepararSrc = (img) => {
                 if (!img || img.trim() === '') return '';
@@ -1576,7 +1576,7 @@ function verDetalleRuta(id) {
                 
                 const destinoNombre = p.razon_social ? `${p.razon_social} - ${p.sucursal}` : (p.destino_manual || 'Destino');
                 const gastosParada = gastos.filter(g => g.parada_id == p.id);
-                const cucasParada = cucas.filter(c => c.parada_id == p.id); // 👈 Cucas correspondientes a esta parada
+                const cucasParada = cucas.filter(c => c.parada_id == p.id);
                 
                 let gastosDetalleHtml = '';
                 if (gastosParada.length > 0) {
@@ -1595,17 +1595,21 @@ function verDetalleRuta(id) {
                     gastosDetalleHtml += '</div>';
                 }
 
-                // 📄 Renderizado de Cucas (Facturas) por parada
+                // 📄 Renderizado exclusivo de Foto de Cuca: Ruta, Chofer, Cuca y Fecha
                 let cucasDetalleHtml = '';
                 if (cucasParada.length > 0) {
-                    cucasDetalleHtml = '<div style="margin-top:10px; padding-left:15px; border-left:2px solid #2e7d32; font-size:13px;">';
-                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:4px;">📄 Facturas / Cucas Entregadas:</p>';
+                    cucasDetalleHtml = '<div style="margin-top:10px; padding:10px; border-left:3px solid #2e7d32; background:#f4fbf4; border-radius:6px; font-size:13px;">';
+                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:8px;">📄 Datos del Comprobante (Cuca):</p>';
                     cucasParada.forEach(cp => {
-                        cucasDetalleHtml += `<div style="margin-bottom: 8px;">• <strong>No. Cuca:</strong> ${cp.numero_cuca}`;
+                        cucasDetalleHtml += `<div style="margin-bottom: 10px; line-height: 1.6;">
+                            <div>• <strong>Ruta:</strong> ${r.numero_ruta ? r.numero_ruta : '#' + r.id}</div>
+                            <div>• <strong>Chofer:</strong> ${r.chofer}</div>
+                            <div>• <strong>Cuca:</strong> ${cp.numero_cuca}</div>
+                            <div>• <strong>Fecha:</strong> ${cp.fecha}</div>`;
                         
                         if (cp.foto_cuca && cp.foto_cuca.trim() !== '') {
                             let fotoCucaSrc = prepararSrc(cp.foto_cuca);
-                            cucasDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoCucaSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #ddd;" onclick="verImagenGrande('${fotoCucaSrc}')" title="Ver foto de Cuca sellada"></div>`;
+                            cucasDetalleHtml += `<div style="margin-top: 6px;"><img src="${fotoCucaSrc}" style="width: 90px; height: 90px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrande('${fotoCucaSrc}')" title="Ver foto completa"></div>`;
                         }
                         
                         cucasDetalleHtml += `</div>`;
@@ -1636,7 +1640,7 @@ function verDetalleRuta(id) {
             
             body.innerHTML = `
                 <span class="cerrar-modal" onclick="cerrarModal()">&times;</span>
-                <h2 style="color:#4A148C;">📋 Detalle de Ruta #${r.id} ${r.numero_ruta ? '(' + r.numero_ruta + ')' : ''}</h2>
+                <h2 style="color:#4A148C;">📋 Detalle de Ruta: ${r.numero_ruta ? r.numero_ruta : '#' + r.id} <span style="font-size:16px; color:#666;">(ID: #${r.id})</span></h2>
                 <div style="background:#f5f5f5; padding:15px; border-radius:10px; margin:10px 0;">
                     <p><strong>Número de Ruta:</strong> ${r.numero_ruta || 'No asignado'}</p>
                     <p><strong>Chofer:</strong> ${r.chofer}</p>
