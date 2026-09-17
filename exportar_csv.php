@@ -46,8 +46,8 @@ if (!$result) {
 $output = fopen('php://output', 'w');
 
 fputcsv($output, [
-    'ID RUTA', 'FECHA INICIO', 'HORA INICIO', 'FECHA FIN', 'HORA FIN', 'CHOFER', 'AUXILIAR', 'VEHICULO',
-    'ORIGEN', 'KM INICIAL', 'KM FINAL', 'KM RECORRIDO', 
+    'RUTA', 'FECHA', 'HORA', 'CHOFER', 'AUXILIAR', 'VEHICULO',
+    'KM INICIAL', 'KM FINAL', 'KM RECORRIDO', 
     'DETALLE DE GASTOS', 'TOTAL GASTOS', 'ESTATUS'
 ]);
 
@@ -56,10 +56,6 @@ while ($row = $result->fetch_assoc()) {
     $f_inicio_formato = !empty($row['fecha_inicio']) ? date('d/m/Y', strtotime($row['fecha_inicio'])) : 'N/A';
     $h_ini_cruda = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : '00:00';
     $h_inicio_formato = ($h_ini_cruda == '00:00') ? 'No registrada' : $h_ini_cruda;
-    
-    $f_fin_formato = !empty($row['fecha_fin']) ? date('d/m/Y', strtotime($row['fecha_fin'])) : 'Pendiente';
-    $h_fin_cruda = !empty($row['fecha_fin']) ? date('H:i', strtotime($row['fecha_fin'])) : '00:00';
-    $h_fin_formato = (empty($row['fecha_fin']) || $h_fin_cruda == '00:00') ? 'Pendiente' : $h_fin_cruda;
     
     $id_ruta = $row['id'];
     $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
@@ -76,15 +72,12 @@ while ($row = $result->fetch_assoc()) {
     $origen = str_replace(["\t", "\n", "\r", ","], " ", $row['origen']);
     
     fputcsv($output, [
-        $row['id'],
+        $origen,
         $f_inicio_formato,
         $h_inicio_formato,
-        $f_fin_formato,
-        $h_fin_formato,
         $chofer,
         $auxiliar,
         $vehiculo,
-        $origen,
         $row['km_inicial'] ?? 0,
         $row['km_final'] ?? 0,
         $row['km_total'] ?? 0,

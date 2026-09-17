@@ -58,17 +58,15 @@ if (!empty($semana)) {
 $html .= '<table border="1" cellpadding="3" style="font-size:7px; border-collapse:collapse; width:100%;">
 <thead>
     <tr style="background-color:#4A148C; color:#FFFFFF; font-weight:bold;">
-        <th width="4%" align="center">ID</th>
-        <th width="6%" align="center">F. Inic</th>
-        <th width="6%" align="center">H. Inic</th>
-        <th width="6%" align="center">F. Fin</th>
-        <th width="6%" align="center">H. Fin</th>
-        <th width="11%" align="left">Chofer</th>
-        <th width="9%" align="center">Vehículo</th>
-        <th width="6%" align="center">Km Inic</th>
-        <th width="6%" align="center">Km Fin</th>
-        <th width="6%" align="center">Km Tot</th>
-        <th width="19%" align="left">Detalle Gastos</th>
+        <th width="14%" align="left">Ruta</th>
+        <th width="7%" align="center">Fecha</th>
+        <th width="7%" align="center">Hora</th>
+        <th width="13%" align="left">Chofer</th>
+        <th width="10%" align="center">Vehículo</th>
+        <th width="7%" align="center">Km Inic</th>
+        <th width="7%" align="center">Km Fin</th>
+        <th width="7%" align="center">Km Tot</th>
+        <th width="13%" align="left">Detalle Gastos</th>
         <th width="8%" align="right">Total</th>
         <th width="7%" align="center">Estatus</th>
     </tr>
@@ -89,10 +87,6 @@ while ($row = $result->fetch_assoc()) {
     $h_ini_cruda = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : '00:00';
     $h_inicio_formato = ($h_ini_cruda == '00:00') ? '<span style="color:#d32f2f;">Falta</span>' : "<strong>$h_ini_cruda</strong>";
     
-    $f_fin_formato = !empty($row['fecha_fin']) ? date('d/m/y', strtotime($row['fecha_fin'])) : 'Pend.';
-    $h_fin_cruda = !empty($row['fecha_fin']) ? date('H:i', strtotime($row['fecha_fin'])) : '00:00';
-    $h_fin_formato = (empty($row['fecha_fin']) || $h_fin_cruda == '00:00') ? '<span style="color:#d32f2f;">Pend.</span>' : "<strong>$h_fin_cruda</strong>";
-    
     $id_ruta = $row['id'];
     $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
     $res_gastos = $conn->query($sql_gastos);
@@ -103,17 +97,15 @@ while ($row = $result->fetch_assoc()) {
     $texto_gastos = empty($detalle_gastos) ? 'Sin gastos' : implode("<br>", $detalle_gastos);
 
     $html .= '<tr>
-        <td width="4%" align="center"><strong>#' . $row['id'] . '</strong></td>
-        <td width="6%" align="center">' . $f_inicio_formato . '</td>
-        <td width="6%" align="center">' . $h_inicio_formato . '</td>
-        <td width="6%" align="center">' . $f_fin_formato . '</td>
-        <td width="6%" align="center">' . $h_fin_formato . '</td>
-        <td width="11%" align="left">' . htmlspecialchars($row['chofer']) . '</td>
-        <td width="9%" align="center">' . htmlspecialchars($row['placas']) . '</td>
-        <td width="6%" align="center">' . number_format($km_inicial, 0) . '</td>
-        <td width="6%" align="center">' . number_format($km_final, 0) . '</td>
-        <td width="6%" align="center"><strong>' . number_format($km_recorrido, 0) . '</strong></td>
-        <td width="19%" align="left">' . $texto_gastos . '</td>
+        <td width="14%" align="left">' . htmlspecialchars($row['origen'] ?? '') . '</td>
+        <td width="7%" align="center">' . $f_inicio_formato . '</td>
+        <td width="7%" align="center">' . $h_inicio_formato . '</td>
+        <td width="13%" align="left">' . htmlspecialchars($row['chofer']) . '</td>
+        <td width="10%" align="center">' . htmlspecialchars($row['placas']) . '</td>
+        <td width="7%" align="center">' . number_format($km_inicial, 0) . '</td>
+        <td width="7%" align="center">' . number_format($km_final, 0) . '</td>
+        <td width="7%" align="center"><strong>' . number_format($km_recorrido, 0) . '</strong></td>
+        <td width="13%" align="left">' . $texto_gastos . '</td>
         <td width="8%" align="right" style="font-weight:bold; color:#4A148C;">$' . number_format($row['total_general'], 2) . '</td>
         <td width="7%" align="center">' . ucfirst($row['estatus']) . '</td>
     </tr>';
