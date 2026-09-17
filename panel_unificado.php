@@ -1486,7 +1486,7 @@ function cerrarImageModal() {
     modal.style.display = 'none';
 }
 
-// 🖼️ VISOR MODAL UNIVERSAL CON MARCA DE AGUA Y BOTÓN DE DESCARGA
+// 🖼️ VISOR MODAL UNIVERSAL CON MARCA DE AGUA Y BOTÓN DE DESCARGA A UN LADO
 function verImagenGrandeConMarca(src, titulo, datos) {
     const modal = document.getElementById('imageModal');
     modal.style.display = 'flex';
@@ -1502,24 +1502,26 @@ function verImagenGrandeConMarca(src, titulo, datos) {
         <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer; z-index:3001;" onclick="cerrarImageModal()">&times;</span>
         
         <div style="position:relative; max-width:90%; max-height:85vh; display:inline-block; text-align:center;" onclick="event.stopPropagation()">
-            <img id="modalImage" src="${src}" crossorigin="anonymous" style="max-width:100%; max-height:70vh; border-radius:10px; display:block; margin:0 auto;">
+            <img id="modalImage" src="${src}" crossorigin="anonymous" style="max-width:100%; max-height:75vh; border-radius:10px; display:block; margin:0 auto;">
             
-            <!-- Marca de agua superpuesta en pantalla -->
-            <div style="position:absolute; bottom:15px; left:15px; background:rgba(0,0,0,0.85); color:#ffffff; padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.3; font-family:sans-serif; border-left:4px solid #4A148C; box-shadow:0 3px 10px rgba(0,0,0,0.5); text-align:left;">
-                ${htmlDatos}
-            </div>
+            <!-- Contenedor flotante: Marca de agua y Botón a un lado -->
+            <div style="position:absolute; bottom:15px; left:15px; right:15px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; pointer-events:none;">
+                
+                <!-- Marca de Agua -->
+                <div style="background:rgba(0,0,0,0.85); color:#ffffff; padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.3; font-family:sans-serif; border-left:4px solid #4A148C; box-shadow:0 3px 10px rgba(0,0,0,0.5); text-align:left; pointer-events:auto; max-width:70%;">
+                    ${htmlDatos}
+                </div>
 
-            <!-- Botón de descarga -->
-            <div style="margin-top:12px;">
-                <button onclick="descargarFotoConMarca('${src}', '${titulo}', '${datosJSON}')" class="btn btn-success" style="background:#2e7d32; padding:10px 20px; font-size:14px; cursor:pointer; border:none; border-radius:6px; color:white; font-weight:bold;">
-                    📥 Descargar Foto con Marca de Agua
+                <!-- Botón de Descarga al lado -->
+                <button onclick="descargarFotoConMarca('${src}', '${titulo}', '${datosJSON}')" class="btn btn-success" style="background:#2e7d32; padding:10px 16px; font-size:13px; cursor:pointer; border:none; border-radius:6px; color:white; font-weight:bold; white-space:nowrap; pointer-events:auto; box-shadow:0 3px 10px rgba(0,0,0,0.5);">
+                    📥 Descargar Fotografía
                 </button>
             </div>
         </div>
     `;
 }
 
-// 📥 PROCESAR E INCRUSTAR LA MARCA DE AGUA EN LA FOTO PARA DESCARGA DIRECTA
+//PROCESAR E INCRUSTAR LA MARCA DE AGUA EN LA FOTO PARA DESCARGA DIRECTA
 function descargarFotoConMarca(src, titulo, datosEncoded) {
     const datos = JSON.parse(decodeURIComponent(datosEncoded));
     const img = new Image();
