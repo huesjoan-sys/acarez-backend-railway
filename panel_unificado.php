@@ -6,6 +6,12 @@
 session_start();
 require_once 'conexion.php';
 
+// 🕒 Ajustar zona horaria de México en PHP y MySQL (UTC-6)
+date_default_timezone_set('America/Mexico_City');
+if (isset($conn) && $conn) {
+    $conn->query("SET time_zone = '-06:00'");
+}
+
 $seccion = $_GET['seccion'] ?? 'reportes';
 $semana_seleccionada = $_GET['semana_facturar'] ?? '';
 $accion = $_GET['accion'] ?? '';
