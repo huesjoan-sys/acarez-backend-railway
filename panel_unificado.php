@@ -1673,7 +1673,7 @@ function verDetalleRuta(id) {
 
             // Objetos estructurados para marca de agua de odómetros
             const datosOdoInicio = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Km Inicial": (r.km_inicial || 0) + ' km', "Fecha": r.fecha_inicio || '' }).replace(/"/g, '&quot;');
-            const datosOdoFin = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Km Final": (r.km_final || 0) + ' km', "Total Recorrido": (r.km_total || 0) + ' km' }).replace(/"/g, '&quot;');
+            const datosOdoFin = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Km Final": (r.km_final || 0) + ' km', "Total Recorrido": (r.km_total || 0) + ' km', "Fecha": r.fecha_fin || r.fecha_inicio || '' }).replace(/"/g, '&quot;');
 
             let paradasHtml = paradas.length === 0 ? '<p>No hay paradas registradas</p>' : '';
             
