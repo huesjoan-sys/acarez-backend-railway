@@ -47,12 +47,11 @@ $output = fopen('php://output', 'w');
 
 fputcsv($output, [
     'RUTA', 'FECHA', 'HORA', 'CHOFER', 'AUXILIAR', 'VEHICULO',
-    'KM INICIAL', 'KM FINAL', 'KM RECORRIDO', 
+    'ORIGEN', 'KM INICIAL', 'KM FINAL', 'KM RECORRIDO', 
     'DETALLE DE GASTOS', 'TOTAL GASTOS', 'ESTATUS'
 ]);
 
 while ($row = $result->fetch_assoc()) {
-    // Detección inteligente de hora 00:00
     $f_inicio_formato = !empty($row['fecha_inicio']) ? date('d/m/Y', strtotime($row['fecha_inicio'])) : 'N/A';
     $h_ini_cruda = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : '00:00';
     $h_inicio_formato = ($h_ini_cruda == '00:00') ? 'No registrada' : $h_ini_cruda;
@@ -66,18 +65,20 @@ while ($row = $result->fetch_assoc()) {
     }
     $texto_gastos = empty($detalle_gastos) ? 'Sin gastos' : implode(" | ", $detalle_gastos);
 
+    $ruta_num = $row['ruta'] ?? $row['no_ruta'] ?? $row['num_ruta'] ?? $row['id'];
     $chofer = str_replace(["\t", "\n", "\r", ","], " ", $row['chofer']);
     $auxiliar = str_replace(["\t", "\n", "\r", ","], " ", $row['auxiliar'] ?? 'Sin auxiliar');
     $vehiculo = str_replace(["\t", "\n", "\r", ","], " ", ($row['placas'] . ' ' . $row['no_economico']));
     $origen = str_replace(["\t", "\n", "\r", ","], " ", $row['origen']);
     
     fputcsv($output, [
-        $origen,
+        $ruta_num,
         $f_inicio_formato,
         $h_inicio_formato,
         $chofer,
         $auxiliar,
         $vehiculo,
+        $origen,
         $row['km_inicial'] ?? 0,
         $row['km_final'] ?? 0,
         $row['km_total'] ?? 0,

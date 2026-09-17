@@ -66,6 +66,7 @@ if (!$result) {
                 <th>CHOFER</th>
                 <th>AUXILIAR</th>
                 <th>VEHÍCULO</th>
+                <th>ORIGEN</th>
                 <th>KM INICIAL</th>
                 <th>KM FINAL</th>
                 <th>KM TOTAL</th>
@@ -81,7 +82,6 @@ while ($row = $result->fetch_assoc()) {
     $cont++;
     $clase = ($cont % 2 == 0) ? 'fila-alternativa' : '';
     
-    // Detección inteligente de hora
     $f_inicio_formato = !empty($row['fecha_inicio']) ? date('d/m/Y', strtotime($row['fecha_inicio'])) : 'N/A';
     $h_ini_cruda = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : '00:00';
     $h_inicio_formato = ($h_ini_cruda == '00:00') ? '<span class="alerta">Sin registrar</span>' : "<strong>$h_ini_cruda</strong>";
@@ -95,6 +95,7 @@ while ($row = $result->fetch_assoc()) {
     }
     $texto_gastos = empty($detalle_gastos) ? 'Sin gastos' : implode("<br>", $detalle_gastos);
 
+    $ruta_num = htmlspecialchars($row['ruta'] ?? $row['no_ruta'] ?? $row['num_ruta'] ?? $row['id']);
     $chofer = htmlspecialchars($row['chofer'] ?? '');
     $auxiliar = htmlspecialchars($row['auxiliar'] ?? 'Sin auxiliar');
     $vehiculo = htmlspecialchars($row['placas'] ?? '') . ' (' . htmlspecialchars($row['no_economico'] ?? '') . ')';
@@ -106,12 +107,13 @@ while ($row = $result->fetch_assoc()) {
     $total_gen  = number_format($row['total_general'] ?? 0, 2);
 ?>
             <tr class="<?= $clase ?>">
-                <td><?= $origen ?></td>
+                <td style="text-align:center;"><strong><?= $ruta_num ?></strong></td>
                 <td style="text-align:center;"><?= $f_inicio_formato ?></td>
                 <td style="text-align:center;"><?= $h_inicio_formato ?></td>
                 <td><?= $chofer ?></td>
                 <td><?= $auxiliar ?></td>
                 <td style="text-align:center;"><?= $vehiculo ?></td>
+                <td><?= $origen ?></td>
                 <td style="text-align:center;"><?= $km_inicial ?></td>
                 <td style="text-align:center;"><?= $km_final ?></td>
                 <td style="text-align:center; font-weight:bold;"><?= $km_total ?> km</td>
