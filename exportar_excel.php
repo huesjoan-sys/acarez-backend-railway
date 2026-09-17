@@ -95,7 +95,7 @@ while ($row = $result->fetch_assoc()) {
     }
     $texto_gastos = empty($detalle_gastos) ? 'Sin gastos' : implode("<br>", $detalle_gastos);
 
-    $ruta_num = htmlspecialchars($row['ruta'] ?? $row['no_ruta'] ?? $row['num_ruta'] ?? $row['id']);
+    $ruta_num = htmlspecialchars($row['numero_ruta'] ?? 'Sin número');
     $chofer = htmlspecialchars($row['chofer'] ?? '');
     $auxiliar = htmlspecialchars($row['auxiliar'] ?? 'Sin auxiliar');
     $vehiculo = htmlspecialchars($row['placas'] ?? '') . ' (' . htmlspecialchars($row['no_economico'] ?? '') . ')';

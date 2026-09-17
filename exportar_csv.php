@@ -65,7 +65,7 @@ while ($row = $result->fetch_assoc()) {
     }
     $texto_gastos = empty($detalle_gastos) ? 'Sin gastos' : implode(" | ", $detalle_gastos);
 
-    $ruta_num = $row['ruta'] ?? $row['no_ruta'] ?? $row['num_ruta'] ?? $row['id'];
+    $ruta_num = $row['numero_ruta'] ?? 'Sin número';
     $chofer = str_replace(["\t", "\n", "\r", ","], " ", $row['chofer']);
     $auxiliar = str_replace(["\t", "\n", "\r", ","], " ", $row['auxiliar'] ?? 'Sin auxiliar');
     $vehiculo = str_replace(["\t", "\n", "\r", ","], " ", ($row['placas'] . ' ' . $row['no_economico']));
