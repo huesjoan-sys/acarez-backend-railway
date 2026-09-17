@@ -1480,34 +1480,106 @@ function cerrarImageModal() {
     modal.style.display = 'none';
 }
 
-// Vista estándar para fotos simples
-function verImagenGrande(src) {
+// 🖼️ VISOR MODAL UNIVERSAL CON MARCA DE AGUA Y BOTÓN DE DESCARGA
+function verImagenGrandeConMarca(src, titulo, datos) {
     const modal = document.getElementById('imageModal');
     modal.style.display = 'flex';
-    modal.innerHTML = `
-        <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer;" onclick="cerrarImageModal()">&times;</span>
-        <img id="modalImage" src="${src}" style="max-width:90%; max-height:90%; border-radius:10px;">
-    `;
-}
+    
+    const datosJSON = encodeURIComponent(JSON.stringify(datos));
+    
+    let htmlDatos = `<div style="font-size:14px; font-weight:bold; color:#ffc107; margin-bottom:4px;">${titulo}</div>`;
+    Object.keys(datos).forEach(key => {
+        htmlDatos += `<div><strong>${key}:</strong> ${datos[key]}</div>`;
+    });
 
-// Vista con Marca de Agua Flotante para Cucas
-function verImagenGrandeConMarca(src, ruta, chofer, cuca, fecha) {
-    const modal = document.getElementById('imageModal');
-    modal.style.display = 'flex';
     modal.innerHTML = `
-        <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer;" onclick="cerrarImageModal()">&times;</span>
-        <div style="position:relative; max-width:90%; max-height:90%; display:inline-block;" onclick="event.stopPropagation()">
-            <img id="modalImage" src="${src}" style="max-width:100%; max-height:85vh; border-radius:10px; display:block;">
+        <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer; z-index:3001;" onclick="cerrarImageModal()">&times;</span>
+        
+        <div style="position:relative; max-width:90%; max-height:85vh; display:inline-block; text-align:center;" onclick="event.stopPropagation()">
+            <img id="modalImage" src="${src}" crossorigin="anonymous" style="max-width:100%; max-height:70vh; border-radius:10px; display:block; margin:0 auto;">
             
-            <!-- Marca de agua superpuesta en la foto -->
-            <div style="position:absolute; bottom:15px; left:15px; background:rgba(0,0,0,0.8); color:#ffffff; padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.3; font-family:sans-serif; border-left:4px solid #2e7d32; box-shadow:0 3px 10px rgba(0,0,0,0.5); text-align:left;">
-                <div><strong>Ruta:</strong> ${ruta}</div>
-                <div><strong>Chofer:</strong> ${chofer}</div>
-                <div><strong>Cuca:</strong> ${cuca}</div>
-                <div><strong>Fecha:</strong> ${fecha}</div>
+            <!-- Marca de agua superpuesta en pantalla -->
+            <div style="position:absolute; bottom:15px; left:15px; background:rgba(0,0,0,0.85); color:#ffffff; padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.3; font-family:sans-serif; border-left:4px solid #4A148C; box-shadow:0 3px 10px rgba(0,0,0,0.5); text-align:left;">
+                ${htmlDatos}
+            </div>
+
+            <!-- Botón de descarga -->
+            <div style="margin-top:12px;">
+                <button onclick="descargarFotoConMarca('${src}', '${titulo}', '${datosJSON}')" class="btn btn-success" style="background:#2e7d32; padding:10px 20px; font-size:14px; cursor:pointer; border:none; border-radius:6px; color:white; font-weight:bold;">
+                    📥 Descargar Foto con Marca de Agua
+                </button>
             </div>
         </div>
     `;
+}
+
+// 📥 PROCESAR E INCRUSTAR LA MARCA DE AGUA EN LA FOTO PARA DESCARGA DIRECTA
+function descargarFotoConMarca(src, titulo, datosEncoded) {
+    const datos = JSON.parse(decodeURIComponent(datosEncoded));
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = src;
+    
+    img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        
+        // 1. Dibujar imagen original
+        ctx.drawImage(img, 0, 0);
+        
+        // Escalar elementos visuales según resolución
+        const escala = Math.max(canvas.width / 1000, 1);
+        const fontSize = Math.round(18 * escala);
+        const padding = Math.round(15 * escala);
+        const lineHeight = Math.round(24 * escala);
+        
+        const lineas = [titulo];
+        Object.keys(datos).forEach(key => {
+            lineas.push(`${key}: ${datos[key]}`);
+        });
+        
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        let maxTextoWidth = 0;
+        lineas.forEach(l => {
+            const w = ctx.measureText(l).width;
+            if (w > maxTextoWidth) maxTextoWidth = w;
+        });
+        
+        const boxWidth = maxTextoWidth + (padding * 2);
+        const boxHeight = (lineas.length * lineHeight) + (padding * 2);
+        const posX = Math.round(20 * escala);
+        const posY = canvas.height - boxHeight - Math.round(20 * escala);
+        
+        // 2. Fondo semitransparente
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(posX, posY, boxWidth, boxHeight);
+        
+        // 3. Barra vertical morada
+        ctx.fillStyle = '#4A148C';
+        ctx.fillRect(posX, posY, Math.round(6 * escala), boxHeight);
+        
+        // 4. Texto informativo
+        lineas.forEach((linea, index) => {
+            if (index === 0) {
+                ctx.fillStyle = '#FFC107'; // Encabezado amarillo
+                ctx.font = `bold ${fontSize}px sans-serif`;
+            } else {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = `${fontSize}px sans-serif`;
+            }
+            const textY = posY + padding + ((index + 1) * lineHeight) - Math.round(5 * escala);
+            ctx.fillText(linea, posX + padding + Math.round(6 * escala), textY);
+        });
+        
+        // 5. Descarga automática
+        const enlace = document.createElement('a');
+        enlace.download = `comprobante_acarez_${Date.now()}.jpg`;
+        enlace.href = canvas.toDataURL('image/jpeg', 0.95);
+        enlace.click();
+    };
 }
 
 // 🪟 CONTROL DE VENTANAS EMERGENTES (MODALES) PARA EDICIÓN
@@ -1582,6 +1654,7 @@ function verDetalleRuta(id) {
             const paradas = data.paradas || [];
             const gastos = data.gastos || [];
             const cucas = data.cucas || [];
+            const numRuta = r.numero_ruta ? r.numero_ruta : '#' + r.id;
             
             const prepararSrc = (img) => {
                 if (!img || img.trim() === '') return '';
@@ -1591,6 +1664,10 @@ function verDetalleRuta(id) {
 
             const fotoInicioSrc = prepararSrc(r.foto_inicio);
             const fotoFinSrc = prepararSrc(r.foto_fin);
+
+            // Objetos estructurados para marca de agua de odómetros
+            const datosOdoInicio = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Km Inicial": (r.km_inicial || 0) + ' km', "Fecha": r.fecha_inicio || '' }).replace(/"/g, '&quot;');
+            const datosOdoFin = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Km Final": (r.km_final || 0) + ' km', "Total Recorrido": (r.km_total || 0) + ' km' }).replace(/"/g, '&quot;');
 
             let paradasHtml = paradas.length === 0 ? '<p>No hay paradas registradas</p>' : '';
             
@@ -1611,7 +1688,9 @@ function verDetalleRuta(id) {
                         
                         if (gp.foto && gp.foto.trim() !== '') {
                             let fotoSrc = prepararSrc(gp.foto);
-                            gastosDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #ddd;" onclick="verImagenGrande('${fotoSrc}')" title="Ver comprobante"></div>`;
+                            const datosGasto = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Concepto": gp.concepto, "Monto": "$" + parseFloat(gp.monto).toFixed(2), "Fecha": gp.fecha || '' }).replace(/"/g, '&quot;');
+                            
+                            gastosDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #ddd;" onclick="verImagenGrandeConMarca('${fotoSrc}', '💰 Comprobante de Gasto', ${datosGasto})" title="Ver comprobante con marca de agua"></div>`;
                         }
                         
                         gastosDetalleHtml += `</div>`;
@@ -1619,17 +1698,13 @@ function verDetalleRuta(id) {
                     gastosDetalleHtml += '</div>';
                 }
 
-                // 📄 Renderizado exclusivo de Cucas con interlineado reducido y marca de agua
+                // 📄 Renderizado exclusivo de Cucas
                 let cucasDetalleHtml = '';
                 if (cucasParada.length > 0) {
                     cucasDetalleHtml = '<div style="margin-top:6px; padding:6px 10px; border-left:3px solid #2e7d32; background:#f4fbf4; border-radius:6px; font-size:12px; line-height:1.2;">';
                     cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:4px; font-size:12px;">📄 Datos del Comprobante (Cuca):</p>';
                     cucasParada.forEach(cp => {
-                        const numRuta = r.numero_ruta ? r.numero_ruta : '#' + r.id;
-                        const choferEsc = (r.chofer || '').replace(/'/g, "\\'");
-                        const numRutaEsc = (numRuta || '').replace(/'/g, "\\'");
-                        const cucaEsc = (cp.numero_cuca || '').replace(/'/g, "\\'");
-                        const fechaEsc = (cp.fecha || '').replace(/'/g, "\\'");
+                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Cuca": cp.numero_cuca, "Fecha": cp.fecha || '' }).replace(/"/g, '&quot;');
 
                         cucasDetalleHtml += `<div style="margin-bottom: 6px; line-height: 1.25;">
                             <div>• <strong>Ruta:</strong> ${numRuta}</div>
@@ -1639,7 +1714,7 @@ function verDetalleRuta(id) {
                         
                         if (cp.foto_cuca && cp.foto_cuca.trim() !== '') {
                             let fotoCucaSrc = prepararSrc(cp.foto_cuca);
-                            cucasDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoCucaSrc}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '${numRutaEsc}', '${choferEsc}', '${cucaEsc}', '${fechaEsc}')" title="Ver foto con marca de agua"></div>`;
+                            cucasDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoCucaSrc}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '📄 Comprobante Cuca', ${datosCuca})" title="Ver foto con marca de agua"></div>`;
                         }
                         
                         cucasDetalleHtml += `</div>`;
@@ -1681,12 +1756,12 @@ function verDetalleRuta(id) {
                     
                     <div style="display:flex; gap:15px; align-items:center; margin-top:8px;">
                         <p><strong>Km Inicial:</strong> ${r.km_inicial || 0} km</p>
-                        ${fotoInicioSrc ? `<button class="btn btn-info btn-pequeno" onclick="verImagenGrande('${fotoInicioSrc}')">📷 Foto Odómetro Inicial</button>` : '<span style="color:#aaa; font-size:12px;">(Sin foto inicial)</span>'}
+                        ${fotoInicioSrc ? `<button class="btn btn-info btn-pequeno" onclick="verImagenGrandeConMarca('${fotoInicioSrc}', '📷 Odómetro Inicial', ${datosOdoInicio})">📷 Foto Odómetro Inicial</button>` : '<span style="color:#aaa; font-size:12px;">(Sin foto inicial)</span>'}
                     </div>
 
                     <div style="display:flex; gap:15px; align-items:center; margin-top:6px;">
                         <p><strong>Km Final:</strong> ${r.km_final || 0} km (Total: ${r.km_total || 0} km)</p>
-                        ${fotoFinSrc ? `<button class="btn btn-info btn-pequeno" onclick="verImagenGrande('${fotoFinSrc}')">📷 Foto Odómetro Final</button>` : '<span style="color:#aaa; font-size:12px;">(Sin foto final)</span>'}
+                        ${fotoFinSrc ? `<button class="btn btn-info btn-pequeno" onclick="verImagenGrandeConMarca('${fotoFinSrc}', '📷 Odómetro Final', ${datosOdoFin})">📷 Foto Odómetro Final</button>` : '<span style="color:#aaa; font-size:12px;">(Sin foto final)</span>'}
                     </div>
 
                     <p style="margin-top:10px;"><strong>Total de Gastos de la Ruta:</strong> <span style="color:green; font-weight:bold;">$${parseFloat(r.total_gastos || 0).toFixed(2)}</span></p>
