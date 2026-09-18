@@ -1725,13 +1725,13 @@ function verDetalleRuta(id) {
                     });
 
                     cucasDetalleHtml = '<div style="margin-top:6px; padding:8px 12px; border-left:3px solid #2e7d32; background:#f4fbf4; border-radius:6px; font-size:12px; line-height:1.3;">';
-                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:6px; font-size:12px;">📄 Comprobantes Cuca (Facturas):</p>';
+                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:6px; font-size:12px;">📄 Comprobantes Quka (Facturas):</p>';
 
                     Object.values(cucasAgrupadas).forEach(cucaGroup => {
-                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Cuca": cucaGroup.numero_cuca, "Páginas": cucaGroup.fotos.length, "Fecha": cucaGroup.fecha }).replace(/"/g, '&quot;');
+                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Quka": cucaGroup.numero_cuca, "Páginas": cucaGroup.fotos.length, "Fecha": cucaGroup.fecha }).replace(/"/g, '&quot;');
 
                         cucasDetalleHtml += `<div style="margin-bottom: 8px; padding-bottom:6px; border-bottom:1px dashed #c8e6c9;">
-                            <div>• <strong>No. Cuca:</strong> ${cucaGroup.numero_cuca} (${cucaGroup.fotos.length} página(s))</div>
+                            <div>• <strong>No. Quka:</strong> ${cucaGroup.numero_cuca} (${cucaGroup.fotos.length} página(s))</div>
                             <div>• <strong>Fecha:</strong> ${cucaGroup.fecha}</div>`;
                         
                         if (cucaGroup.fotos.length > 0) {
@@ -1750,7 +1750,7 @@ function verDetalleRuta(id) {
                     });
                     cucasDetalleHtml += '</div>';
                 } else {
-                    cucasDetalleHtml = '<div style="margin-top:6px; font-size:12px; color:#888;">Sin cucas (facturas) registradas en esta parada</div>';
+                    cucasDetalleHtml = '<div style="margin-top:6px; font-size:12px; color:#888;">Sin Qukas (facturas) registradas en esta parada</div>';
                 }
 
                 const bgColor = esCompletado ? '#e8f5e9' : '#ffffff';
@@ -1796,7 +1796,7 @@ function verDetalleRuta(id) {
                     <p style="margin-top:10px;"><strong>Total de Gastos de la Ruta:</strong> <span style="color:green; font-weight:bold;">$${parseFloat(r.total_gastos || 0).toFixed(2)}</span></p>
                     <p><strong>Estatus General:</strong> <span class="badge badge-${r.estatus}">${r.estatus}</span></p>
                 </div>
-                <h3 style="margin-top:15px; margin-bottom:10px;">📍 Destinos, Cucas y Gastos por Parada</h3>
+                <h3 style="margin-top:15px; margin-bottom:10px;">📍 Destinos, Qukas y Gastos por Parada</h3>
                 ${paradasHtml}
             `;
         })
