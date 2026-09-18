@@ -91,7 +91,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     }
 
     // Obtener lista de cucas (facturas) de esta ruta
-    $sql_lista_cucas = "SELECT id, parada_id, numero_cuca, foto_cuca, fecha FROM cucas WHERE ruta_id = $ruta_id ORDER BY id DESC";
+    $sql_lista_cucas = "SELECT id, parada_id, numero_cuca, foto_cuca, fecha FROM cucas WHERE ruta_id = $ruta_id ORDER BY id ASC";
     $res_lista_cucas = $conn->query($sql_lista_cucas);
     $cucas = [];
     while ($c = $res_lista_cucas->fetch_assoc()) {
@@ -1706,25 +1706,46 @@ function verDetalleRuta(id) {
                     gastosDetalleHtml += '</div>';
                 }
 
-                // 📄 Renderizado exclusivo de Cucas
+                // 📄 Renderizado exclusivo de Cucas (Agrupación de múltiples páginas por Cuca)
                 let cucasDetalleHtml = '';
                 if (cucasParada.length > 0) {
-                    cucasDetalleHtml = '<div style="margin-top:6px; padding:6px 10px; border-left:3px solid #2e7d32; background:#f4fbf4; border-radius:6px; font-size:12px; line-height:1.2;">';
-                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:4px; font-size:12px;">📄 Datos del Comprobante (Cuca):</p>';
+                    const cucasAgrupadas = {};
                     cucasParada.forEach(cp => {
-                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Cuca": cp.numero_cuca, "Fecha": cp.fecha || '' }).replace(/"/g, '&quot;');
-
-                        cucasDetalleHtml += `<div style="margin-bottom: 6px; line-height: 1.25;">
-                            <div>• <strong>Ruta:</strong> ${numRuta}</div>
-                            <div>• <strong>Chofer:</strong> ${r.chofer}</div>
-                            <div>• <strong>Cuca:</strong> ${cp.numero_cuca}</div>
-                            <div>• <strong>Fecha:</strong> ${cp.fecha}</div>`;
-                        
-                        if (cp.foto_cuca && cp.foto_cuca.trim() !== '') {
-                            let fotoCucaSrc = prepararSrc(cp.foto_cuca);
-                            cucasDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoCucaSrc}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '📄 Comprobante Cuca', ${datosCuca})" title="Ver foto con marca de agua"></div>`;
+                        const num = cp.numero_cuca || 'Sin número';
+                        if (!cucasAgrupadas[num]) {
+                            cucasAgrupadas[num] = {
+                                numero_cuca: num,
+                                fecha: cp.fecha || '',
+                                fotos: []
+                            };
                         }
+                        if (cp.foto_cuca && cp.foto_cuca.trim() !== '') {
+                            cucasAgrupadas[num].fotos.push(cp.foto_cuca);
+                        }
+                    });
+
+                    cucasDetalleHtml = '<div style="margin-top:6px; padding:8px 12px; border-left:3px solid #2e7d32; background:#f4fbf4; border-radius:6px; font-size:12px; line-height:1.3;">';
+                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:6px; font-size:12px;">📄 Comprobantes Cuca (Facturas):</p>';
+
+                    Object.values(cucasAgrupadas).forEach(cucaGroup => {
+                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Cuca": cucaGroup.numero_cuca, "Páginas": cucaGroup.fotos.length, "Fecha": cucaGroup.fecha }).replace(/"/g, '&quot;');
+
+                        cucasDetalleHtml += `<div style="margin-bottom: 8px; padding-bottom:6px; border-bottom:1px dashed #c8e6c9;">
+                            <div>• <strong>No. Cuca:</strong> ${cucaGroup.numero_cuca} (${cucaGroup.fotos.length} página(s))</div>
+                            <div>• <strong>Fecha:</strong> ${cucaGroup.fecha}</div>`;
                         
+                        if (cucaGroup.fotos.length > 0) {
+                            cucasDetalleHtml += `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">`;
+                            cucaGroup.fotos.forEach((fotoPath, idx) => {
+                                let fotoCucaSrc = prepararSrc(fotoPath);
+                                cucasDetalleHtml += `
+                                    <div style="text-align:center;">
+                                        <img src="${fotoCucaSrc}" style="width: 75px; height: 75px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '📄 Cuca ${cucaGroup.numero_cuca} (Pág ${idx + 1})', ${datosCuca})" title="Ver Pág ${idx + 1}">
+                                        <div style="font-size:10px; color:#555; margin-top:2px;">Pág ${idx + 1}</div>
+                                    </div>`;
+                            });
+                            cucasDetalleHtml += `</div>`;
+                        }
                         cucasDetalleHtml += `</div>`;
                     });
                     cucasDetalleHtml += '</div>';
