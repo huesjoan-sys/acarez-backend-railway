@@ -22,13 +22,12 @@ if ($parada_id <= 0) {
     exit;
 }
 
-// Configuración del directorio para guardar las fotos de gastos en el servidor
+// Configuración de directorios para guardar archivos
 $upload_dir_gastos = '../uploads/gastos/';
 if (!is_dir($upload_dir_gastos)) {
     mkdir($upload_dir_gastos, 0777, true);
 }
 
-// Configuración del directorio para guardar las fotos de las cucas (facturas) en el servidor
 $upload_dir_cucas = '../uploads/cucas/';
 if (!is_dir($upload_dir_cucas)) {
     mkdir($upload_dir_cucas, 0777, true);
@@ -84,7 +83,7 @@ try {
                 $tmp_name = $_FILES["foto_$key"]['tmp_name'];
                 $extension = strtolower(pathinfo($_FILES["foto_$key"]['name'], PATHINFO_EXTENSION));
                 
-                $nuevo_nombre_archivo = "gasto_{$ruta_id}_{$parada_id}_{$key}_" . time() . "." . $extension;
+                $nuevo_nombre_archivo = "gasto_{$ruta_id}_{$parada_id}_{$key}_" . time() . "." . ($extension ?: 'jpg');
                 $destino_final = $upload_dir_gastos . $nuevo_nombre_archivo;
                 
                 if (move_uploaded_file($tmp_name, $destino_final)) {
@@ -98,8 +97,7 @@ try {
     }
     $stmtGasto->close();
 
-    // 4. Procesar Cucas (Facturas) enviadas desde la app
-    // Esperamos un conteo o un recorrido de cucas enviadas por índice (ej: numero_cuca_0, numero_cuca_1...)
+    // 4. Procesar Cucas (Facturas) enviadas desde la app (Soporta múltiples fotos/páginas por cuca)
     $stmtCuca = $conn->prepare("INSERT INTO cucas (ruta_id, parada_id, numero_cuca, foto_cuca, fecha) VALUES (?, ?, ?, ?, NOW())");
     
     $i = 0;
@@ -107,23 +105,50 @@ try {
         $numero_cuca = trim($_POST["numero_cuca_$i"]);
         
         if (!empty($numero_cuca)) {
-            $ruta_foto_cuca_bd = "";
+            $fotos_procesadas = 0;
 
-            // Verificar si hay archivo de imagen para esta cuca en específico
-            if (isset($_FILES["foto_cuca_$i"]) && $_FILES["foto_cuca_$i"]['error'] === UPLOAD_ERR_OK) {
+            // Opción A: Múltiples fotos enviadas como arreglo (foto_cuca_0_0, foto_cuca_0_1, etc.)
+            $j = 0;
+            while (isset($_FILES["foto_cuca_{$i}_{$j}"])) {
+                if ($_FILES["foto_cuca_{$i}_{$j}"]['error'] === UPLOAD_ERR_OK) {
+                    $tmp_name = $_FILES["foto_cuca_{$i}_{$j}"]['tmp_name'];
+                    $extension = strtolower(pathinfo($_FILES["foto_cuca_{$i}_{$j}"]['name'], PATHINFO_EXTENSION));
+                    
+                    $nuevo_nombre_cuca = "cuca_{$ruta_id}_{$parada_id}_" . time() . "_{$i}_pag{$j}." . ($extension ?: 'jpg');
+                    $destino_cuca = $upload_dir_cucas . $nuevo_nombre_cuca;
+                    
+                    if (move_uploaded_file($tmp_name, $destino_cuca)) {
+                        $ruta_foto_cuca_bd = "uploads/cucas/" . $nuevo_nombre_cuca;
+                        $stmtCuca->bind_param("iiss", $ruta_id, $parada_id, $numero_cuca, $ruta_foto_cuca_bd);
+                        $stmtCuca->execute();
+                        $fotos_procesadas++;
+                    }
+                }
+                $j++;
+            }
+
+            // Opción B: Foto única por retrocompatibilidad (foto_cuca_0)
+            if ($fotos_procesadas === 0 && isset($_FILES["foto_cuca_$i"]) && $_FILES["foto_cuca_$i"]['error'] === UPLOAD_ERR_OK) {
                 $tmp_name_cuca = $_FILES["foto_cuca_$i"]['tmp_name'];
                 $extension_cuca = strtolower(pathinfo($_FILES["foto_cuca_$i"]['name'], PATHINFO_EXTENSION));
                 
-                $nuevo_nombre_cuca = "cuca_{$ruta_id}_{$parada_id}_" . time() . "_{$i}." . $extension_cuca;
+                $nuevo_nombre_cuca = "cuca_{$ruta_id}_{$parada_id}_" . time() . "_{$i}." . ($extension_cuca ?: 'jpg');
                 $destino_final_cuca = $upload_dir_cucas . $nuevo_nombre_cuca;
                 
                 if (move_uploaded_file($tmp_name_cuca, $destino_final_cuca)) {
                     $ruta_foto_cuca_bd = "uploads/cucas/" . $nuevo_nombre_cuca;
+                    $stmtCuca->bind_param("iiss", $ruta_id, $parada_id, $numero_cuca, $ruta_foto_cuca_bd);
+                    $stmtCuca->execute();
+                    $fotos_procesadas++;
                 }
             }
 
-            $stmtCuca->bind_param("iiss", $ruta_id, $parada_id, $numero_cuca, $ruta_foto_cuca_bd);
-            $stmtCuca->execute();
+            // Opción C: Cuca sin foto adjunta
+            if ($fotos_procesadas === 0) {
+                $ruta_foto_cuca_bd = "";
+                $stmtCuca->bind_param("iiss", $ruta_id, $parada_id, $numero_cuca, $ruta_foto_cuca_bd);
+                $stmtCuca->execute();
+            }
         }
         $i++;
     }
@@ -137,12 +162,12 @@ try {
         $stmtRutaUpdate->close();
     }
 
-    // Confirmar todos los cambios
+    // Confirmar la transacción
     $conn->commit();
 
     echo json_encode([
         'success' => true,
-        'mensaje' => '✅ Parada completada, gastos y cucas registrados correctamente'
+        'mensaje' => '✅ Parada completada, gastos y cucas registradas correctamente'
     ]);
 
 } catch (mysqli_sql_exception $e) {
