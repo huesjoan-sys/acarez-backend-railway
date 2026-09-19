@@ -1740,7 +1740,7 @@ function verDetalleRuta(id) {
                                 let fotoCucaSrc = prepararSrc(fotoPath);
                                 cucasDetalleHtml += `
                                     <div style="text-align:center;">
-                                        <img src="${fotoCucaSrc}" style="width: 75px; height: 75px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '📄 Cuca ${cucaGroup.numero_cuca} (Pág ${idx + 1})', ${datosCuca})" title="Ver Pág ${idx + 1}">
+                                        <img src="${fotoCucaSrc}" style="width: 75px; height: 75px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '📄 Quka ${cucaGroup.numero_cuca} (Pág ${idx + 1})', ${datosCuca})" title="Ver Pág ${idx + 1}">
                                         <div style="font-size:10px; color:#555; margin-top:2px;">Pág ${idx + 1}</div>
                                     </div>`;
                             });
