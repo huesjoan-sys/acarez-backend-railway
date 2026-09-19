@@ -53,6 +53,10 @@ try {
     // Iniciar transacción SQL
     $conn->begin_transaction();
 
+    // BORRADO PREVIO (Opción A): Limpiar gastos y cucas anteriores si se está reescribiendo la parada
+    $conn->query("DELETE FROM gastos WHERE parada_id = $parada_id");
+    $conn->query("DELETE FROM cucas WHERE parada_id = $parada_id");
+
     // 2. Actualizar el estado de la parada y el kilometraje
     $stmtParada = $conn->prepare("UPDATE paradas SET estatus = 'completada', completada = 1, km_actual = ? WHERE id = ?");
     $stmtParada->bind_param("di", $km_actual, $parada_id);
@@ -67,8 +71,6 @@ try {
         'Estacionamiento'   => 'estacionamiento',
         'Gasolina / Diesel' => 'gasolina'
     ];
-
-    $total_nuevos_gastos = 0;
     
     $stmtGasto = $conn->prepare("INSERT INTO gastos (ruta_id, parada_id, concepto, monto, foto, fecha) VALUES (?, ?, ?, ?, ?, NOW())");
 
@@ -76,7 +78,6 @@ try {
         $monto = floatval($_POST["gasto_$key"] ?? 0);
         
         if ($monto > 0) {
-            $total_nuevos_gastos += $monto;
             $ruta_foto_bd = null;
 
             if (isset($_FILES["foto_$key"]) && $_FILES["foto_$key"]['error'] === UPLOAD_ERR_OK) {
@@ -97,7 +98,7 @@ try {
     }
     $stmtGasto->close();
 
-    // 4. Procesar Cucas (Facturas) enviadas desde la app (Soporta múltiples fotos/páginas por cuca)
+    // 4. Procesar Cucas (Facturas) enviadas desde la app
     $stmtCuca = $conn->prepare("INSERT INTO cucas (ruta_id, parada_id, numero_cuca, foto_cuca, fecha) VALUES (?, ?, ?, ?, NOW())");
     
     $i = 0;
@@ -154,13 +155,11 @@ try {
     }
     $stmtCuca->close();
 
-    // 5. Actualizar total_gastos en la ruta solo si hubo gastos nuevos
-    if ($total_nuevos_gastos > 0) {
-        $stmtRutaUpdate = $conn->prepare("UPDATE rutas SET total_gastos = total_gastos + ? WHERE id = ?");
-        $stmtRutaUpdate->bind_param("di", $total_nuevos_gastos, $ruta_id);
-        $stmtRutaUpdate->execute();
-        $stmtRutaUpdate->close();
-    }
+    // 5. Actualizar total_gastos recalculando todo para evitar sumas erróneas tras el borrado
+    $stmtRutaUpdate = $conn->prepare("UPDATE rutas SET total_gastos = (SELECT COALESCE(SUM(monto), 0) FROM gastos WHERE ruta_id = ?) WHERE id = ?");
+    $stmtRutaUpdate->bind_param("ii", $ruta_id, $ruta_id);
+    $stmtRutaUpdate->execute();
+    $stmtRutaUpdate->close();
 
     // Confirmar la transacción
     $conn->commit();
