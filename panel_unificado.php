@@ -83,7 +83,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         $ruta['total_gastos'] = $total_gastos;
     }
     
-    $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, foto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
+    $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, observaciones, foto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
     $res_lista_gastos = $conn->query($sql_lista_gastos);
     $gastos = [];
     while ($g = $res_lista_gastos->fetch_assoc()) {
@@ -91,7 +91,7 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     }
 
     // Obtener lista de cucas (facturas) de esta ruta
-    $sql_lista_cucas = "SELECT id, parada_id, numero_cuca, foto_cuca, fecha FROM cucas WHERE ruta_id = $ruta_id ORDER BY id ASC";
+    $sql_lista_cucas = "SELECT id, parada_id, numero_cuca, observaciones, foto_cuca, fecha FROM cucas WHERE ruta_id = $ruta_id ORDER BY id ASC";
     $res_lista_cucas = $conn->query($sql_lista_cucas);
     $cucas = [];
     while ($c = $res_lista_cucas->fetch_assoc()) {
@@ -1692,11 +1692,14 @@ function verDetalleRuta(id) {
                     gastosDetalleHtml = '<div style="margin-top:8px; padding-left:15px; border-left:2px solid #4A148C; font-size:13px;">';
                     gastosDetalleHtml += '<p style="font-weight:bold; color:#4A148C; margin-bottom:4px;">💰 Gastos:</p>';
                     gastosParada.forEach(gp => {
-                        gastosDetalleHtml += `<div style="margin-bottom: 6px;">• <strong>${gp.concepto}:</strong> $${parseFloat(gp.monto).toFixed(2)}`;
+                        let obsGastoText = (gp.observaciones && gp.observaciones.trim() !== '') ? `<div style="color:#666; font-size:12px; font-style:italic; margin-top:2px;">📝 Obs: ${gp.observaciones}</div>` : '';
+
+                        gastosDetalleHtml += `<div style="margin-bottom: 8px;">• <strong>${gp.concepto}:</strong> $${parseFloat(gp.monto).toFixed(2)}`;
+                        gastosDetalleHtml += obsGastoText;
                         
                         if (gp.foto && gp.foto.trim() !== '') {
                             let fotoSrc = prepararSrc(gp.foto);
-                            const datosGasto = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Concepto": gp.concepto, "Monto": "$" + parseFloat(gp.monto).toFixed(2), "Fecha": gp.fecha || '' }).replace(/"/g, '&quot;');
+                            const datosGasto = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Concepto": gp.concepto, "Monto": "$" + parseFloat(gp.monto).toFixed(2), "Observaciones": gp.observaciones || 'Ninguna', "Fecha": gp.fecha || '' }).replace(/"/g, '&quot;');
                             
                             gastosDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #ddd;" onclick="verImagenGrandeConMarca('${fotoSrc}', '💰 Comprobante de Gasto', ${datosGasto})" title="Ver comprobante con marca de agua"></div>`;
                         }
@@ -1706,7 +1709,7 @@ function verDetalleRuta(id) {
                     gastosDetalleHtml += '</div>';
                 }
 
-                // 📄 Renderizado exclusivo de Cucas (Agrupación de múltiples páginas por Cuca)
+                // 📄 Renderizado de Qukas con sus respectivas observaciones
                 let cucasDetalleHtml = '';
                 if (cucasParada.length > 0) {
                     const cucasAgrupadas = {};
@@ -1715,6 +1718,7 @@ function verDetalleRuta(id) {
                         if (!cucasAgrupadas[num]) {
                             cucasAgrupadas[num] = {
                                 numero_cuca: num,
+                                observaciones: cp.observaciones || '',
                                 fecha: cp.fecha || '',
                                 fotos: []
                             };
@@ -1728,10 +1732,13 @@ function verDetalleRuta(id) {
                     cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:6px; font-size:12px;">📄 Comprobantes Quka (Facturas):</p>';
 
                     Object.values(cucasAgrupadas).forEach(cucaGroup => {
-                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Quka": cucaGroup.numero_cuca, "Páginas": cucaGroup.fotos.length, "Fecha": cucaGroup.fecha }).replace(/"/g, '&quot;');
+                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Quka": cucaGroup.numero_cuca, "Observaciones": cucaGroup.observaciones || 'Ninguna', "Páginas": cucaGroup.fotos.length, "Fecha": cucaGroup.fecha }).replace(/"/g, '&quot;');
+
+                        let obsQukaText = (cucaGroup.observaciones && cucaGroup.observaciones.trim() !== '') ? `<div style="color:#555; font-size:11px; font-style:italic; margin-top:2px;">📝 Obs: ${cucaGroup.observaciones}</div>` : '';
 
                         cucasDetalleHtml += `<div style="margin-bottom: 8px; padding-bottom:6px; border-bottom:1px dashed #c8e6c9;">
                             <div>• <strong>No. Quka:</strong> ${cucaGroup.numero_cuca} (${cucaGroup.fotos.length} página(s))</div>
+                            ${obsQukaText}
                             <div>• <strong>Fecha:</strong> ${cucaGroup.fecha}</div>`;
                         
                         if (cucaGroup.fotos.length > 0) {
