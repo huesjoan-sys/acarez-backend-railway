@@ -36,21 +36,23 @@ if ($accion == 'get_semana_data' && !empty($_GET['semana'])) {
     
     $viajes = [];
     $total_gastos_semana = 0;
-    while ($row = $result->fetch_assoc()) {
-        $gasto = floatval($row['total_general']);
-        $total_gastos_semana += $gasto;
-        $viajes[] = [
-            'id' => $row['id'],
-            'numero_ruta' => $row['numero_ruta'] ?? '',
-            'fecha' => date('d/m/Y H:i', strtotime($row['fecha'])),
-            'chofer' => $row['chofer'],
-            'placas' => $row['placas'],
-            'destino' => $row['origen'],
-            'gasto' => number_format($gasto, 2),
-            'km_inicial' => isset($row['km_inicial']) ? $row['km_inicial'] : 0,
-            'km_final'   => isset($row['km_final']) ? $row['km_final'] : 0,
-            'km_total'   => isset($row['km_total']) ? $row['km_total'] : 0
-        ];
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $gasto = floatval($row['total_general']);
+            $total_gastos_semana += $gasto;
+            $viajes[] = [
+                'id' => $row['id'],
+                'numero_ruta' => $row['numero_ruta'] ?? '',
+                'fecha' => date('d/m/Y H:i', strtotime($row['fecha'])),
+                'chofer' => $row['chofer'],
+                'placas' => $row['placas'],
+                'destino' => $row['origen'],
+                'gasto' => number_format($gasto, 2),
+                'km_inicial' => isset($row['km_inicial']) ? $row['km_inicial'] : 0,
+                'km_final'   => isset($row['km_final']) ? $row['km_final'] : 0,
+                'km_total'   => isset($row['km_total']) ? $row['km_total'] : 0
+            ];
+        }
     }
     
     echo json_encode([
@@ -70,32 +72,39 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
     header('Content-Type: application/json');
     $ruta_id = intval($_GET['ruta_id']);
     
-    $ruta_sql = "SELECT *, foto_inicio, foto_fin FROM rutas WHERE id = $ruta_id";
+    $ruta_sql = "SELECT * FROM rutas WHERE id = $ruta_id";
     $ruta_result = $conn->query($ruta_sql);
-    $ruta = $ruta_result->fetch_assoc();
+    $ruta = $ruta_result ? $ruta_result->fetch_assoc() : null;
     
+    if (!$ruta) {
+        echo json_encode(['success' => false, 'error' => 'Ruta no encontrada']);
+        exit;
+    }
+
     $sql_gastos_suma = "SELECT COALESCE(SUM(monto), 0) AS total_gastos FROM gastos WHERE ruta_id = $ruta_id";
     $res_gastos_suma = $conn->query($sql_gastos_suma);
-    $row_suma = $res_gastos_suma->fetch_assoc();
-    $total_gastos = floatval($row_suma['total_gastos']);
-    
-    if ($ruta) {
-        $ruta['total_gastos'] = $total_gastos;
+    $total_gastos = 0.0;
+    if ($res_gastos_suma && $row_suma = $res_gastos_suma->fetch_assoc()) {
+        $total_gastos = floatval($row_suma['total_gastos']);
     }
+    $ruta['total_gastos'] = $total_gastos;
     
     $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, observaciones, foto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
     $res_lista_gastos = $conn->query($sql_lista_gastos);
     $gastos = [];
-    while ($g = $res_lista_gastos->fetch_assoc()) {
-        $gastos[] = $g;
+    if ($res_lista_gastos) {
+        while ($g = $res_lista_gastos->fetch_assoc()) {
+            $gastos[] = $g;
+        }
     }
 
-    // Obtener lista de cucas (facturas) de esta ruta
     $sql_lista_cucas = "SELECT id, parada_id, numero_cuca, observaciones, foto_cuca, fecha FROM cucas WHERE ruta_id = $ruta_id ORDER BY id ASC";
     $res_lista_cucas = $conn->query($sql_lista_cucas);
     $cucas = [];
-    while ($c = $res_lista_cucas->fetch_assoc()) {
-        $cucas[] = $c;
+    if ($res_lista_cucas) {
+        while ($c = $res_lista_cucas->fetch_assoc()) {
+            $cucas[] = $c;
+        }
     }
     
     $paradas_sql = "SELECT p.*, d.razon_social, d.sucursal, d.direccion 
@@ -105,8 +114,10 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
                     ORDER BY p.orden ASC";
     $paradas_result = $conn->query($paradas_sql);
     $paradas = [];
-    while ($row = $paradas_result->fetch_assoc()) {
-        $paradas[] = $row;
+    if ($paradas_result) {
+        while ($row = $paradas_result->fetch_assoc()) {
+            $paradas[] = $row;
+        }
     }
     
     echo json_encode([
@@ -205,7 +216,7 @@ function manejarCatalogos($conn) {
 // ==============================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
-    // ========== GESTIÓN DE ACCESOS APP Y CHOFERES (TABLA CHOFERES) ==========
+    // ========== GESTIÓN DE ACCESOS APP Y CHOFERES (TABLA CHOFERES CON MYSQLI) ==========
     if (isset($_POST['accion_usuario_app'])) {
         $sub_accion = $_POST['accion_usuario_app'];
 
@@ -219,12 +230,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if (!empty($nombre) && !empty($pin)) {
                 try {
                     if (!empty($id)) {
-                        $stmt = $pdo->prepare("UPDATE choferes SET nombre_chofer = ?, pin_password = ?, placas = ?, numero_economico = ? WHERE id = ?");
-                        $stmt->execute([$nombre, $pin, $placas, $no_eco, $id]);
+                        $stmt = $conn->prepare("UPDATE choferes SET nombre_chofer = ?, pin_password = ?, placas = ?, numero_economico = ? WHERE id = ?");
+                        $stmt->bind_param("ssssi", $nombre, $pin, $placas, $no_eco, $id);
+                        $stmt->execute();
+                        $stmt->close();
                         $_SESSION['mensaje_exito'] = "✅ Chofer actualizado correctamente.";
                     } else {
-                        $stmt = $pdo->prepare("INSERT INTO choferes (nombre_chofer, placas, numero_economico, pin_password, activo) VALUES (?, ?, ?, ?, 1)");
-                        $stmt->execute([$nombre, $placas, $no_eco, $pin]);
+                        $stmt = $conn->prepare("INSERT INTO choferes (nombre_chofer, placas, numero_economico, pin_password, activo) VALUES (?, ?, ?, ?, 1)");
+                        $stmt->bind_param("ssss", $nombre, $placas, $no_eco, $pin);
+                        $stmt->execute();
+                        $stmt->close();
                         $_SESSION['mensaje_exito'] = "✅ Chofer registrado correctamente.";
                     }
                 } catch (Exception $e) {
@@ -236,11 +251,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header("Location: ?seccion=usuarios_app");
             exit;
         } elseif ($sub_accion === 'eliminar') {
-            $id = $_POST['id'] ?? '';
-            if (!empty($id)) {
+            $id = intval($_POST['id'] ?? 0);
+            if ($id > 0) {
                 try {
-                    $stmt = $pdo->prepare("DELETE FROM choferes WHERE id = ?");
-                    $stmt->execute([$id]);
+                    $stmt = $conn->prepare("DELETE FROM choferes WHERE id = ?");
+                    $stmt->bind_param("i", $id);
+                    $stmt->execute();
+                    $stmt->close();
                     $_SESSION['mensaje_exito'] = "🗑️ Chofer eliminado del sistema.";
                 } catch (Exception $e) {
                     $_SESSION['mensaje_error'] = "❌ Error al eliminar el chofer.";
@@ -273,7 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit;
     }
 
-    // ========== CREAR RUTA (Con redirección PRG para evitar duplicados al refrescar) ==========
+    // ========== CREAR RUTA ==========
     if (isset($_POST['crear_ruta'])) {
         $numero_ruta = trim($_POST['numero_ruta'] ?? '');
         $chofer_id = intval($_POST['chofer_id']);
@@ -284,7 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($chofer_id > 0 && !empty($destinos_seleccionados)) {
             $chofer_sql = "SELECT nombre_chofer, placas, numero_economico FROM choferes WHERE id = $chofer_id AND activo = 1";
             $chofer_result = $conn->query($chofer_sql);
-            $chofer = $chofer_result->fetch_assoc();
+            $chofer = $chofer_result ? $chofer_result->fetch_assoc() : null;
             
             if ($chofer) {
                 $fecha_inicio = $fecha_ruta . ' 00:00:00';
@@ -584,21 +601,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             font-size: 28px; cursor: pointer; color: #999;
         }
         .cerrar-modal:hover { color: #333; }
-        .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0; }
-        .seccion-viaje {
-            background: #f8f9fa; padding: 12px; border-radius: 10px;
-            border-top: 4px solid #4A148C;
-        }
-        .seccion-viaje-regreso { border-top-color: #6A1B9A; }
-        .grupo-fotos {
-            display: flex; flex-wrap: wrap; gap: 10px;
-            margin: 10px 0; justify-content: center;
-        }
-        .grupo-fotos img {
-            width: 80px; height: 80px;
-            object-fit: cover; border-radius: 8px;
-            cursor: pointer; border: 1px solid #ddd;
-        }
         .resumen-dia { background-color: #f0f0f0; font-weight: bold; }
         .tabla-semana { min-width: 1000px; white-space: nowrap; }
         .tabla-semana th, .tabla-semana td { white-space: nowrap; padding: 8px 12px; }
@@ -643,7 +645,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             accent-color: #4A148C;
         }
         @media (max-width: 768px) {
-            .grid-2col { grid-template-columns: 1fr; }
             #logoFijo { width: 60px; height: 60px; }
             .logo-header img { height: 35px; }
         }
@@ -690,7 +691,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 </div>
 
-<!-- VENTANA EMERGENTE (MODAL) PARA EDITAR CHOFER -->
+<!-- VENTANA EMERGENTE PARA EDITAR CHOFER -->
 <div id="editarChoferModal" class="detalle-modal" style="display:none;">
     <div class="detalle-content" style="max-width: 500px;">
         <span class="cerrar-modal" onclick="cerrarEditarChoferModal()">&times;</span>
@@ -717,7 +718,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 </div>
 
-<!-- VENTANA EMERGENTE (MODAL) PARA EDITAR AUXILIAR -->
+<!-- VENTANA EMERGENTE PARA EDITAR AUXILIAR -->
 <div id="editarAuxiliarModal" class="detalle-modal" style="display:none;">
     <div class="detalle-content" style="max-width: 450px;">
         <span class="cerrar-modal" onclick="cerrarEditarAuxiliarModal()">&times;</span>
@@ -736,7 +737,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 </div>
 
-<!-- VENTANA EMERGENTE (MODAL) PARA EDITAR DESTINO -->
+<!-- VENTANA EMERGENTE PARA EDITAR DESTINO -->
 <div id="editarDestinoModal" class="detalle-modal" style="display:none;">
     <div class="detalle-content" style="max-width: 550px;">
         <span class="cerrar-modal" onclick="cerrarEditarDestinoModal()">&times;</span>
@@ -798,11 +799,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <label style="font-size:12px; font-weight:bold;">Semana</label>
                     <select name="semana" id="semanaSelect">
                         <option value="">-- Filtrar por semana --</option>
-                        <?php while($row = $semanas->fetch_assoc()): ?>
+                        <?php if($semanas): while($row = $semanas->fetch_assoc()): ?>
                             <option value="<?= $row['semana'] ?>" <?= ($semana == $row['semana']) ? 'selected' : '' ?>>
                                 Semana <?= substr($row['semana'], -2) ?> (<?= $row['inicio'] ?> al <?= $row['fin'] ?>)
                             </option>
-                        <?php endwhile; ?>
+                        <?php endwhile; endif; ?>
                     </select>
                 </div>
 
@@ -820,11 +821,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <label style="font-size:12px; font-weight:bold;">Filtrar por Chofer</label>
                     <select name="chofer" style="padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
                         <option value="">-- Todos los choferes --</option>
-                        <?php while($ch = $listaChoferesFiltro->fetch_assoc()): ?>
+                        <?php if($listaChoferesFiltro): while($ch = $listaChoferesFiltro->fetch_assoc()): ?>
                             <option value="<?= htmlspecialchars($ch['nombre_chofer']) ?>" <?= ($choferFiltro == $ch['nombre_chofer']) ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($ch['nombre_chofer']) ?>
                             </option>
-                        <?php endwhile; ?>
+                        <?php endwhile; endif; ?>
                     </select>
                 </div>
 
@@ -844,15 +845,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $sumaKmTotales = 0;
         $sumaGastosGenerales = 0;
         $arrayReportes = [];
-        while($r = $reportes->fetch_assoc()) {
-            $totalViajesCount++;
-            $sumaKmTotales += floatval($r['km_total'] ?? 0);
-            $sumaGastosGenerales += floatval($r['total_general'] ?? 0);
-            $arrayReportes[] = $r;
+        if ($reportes) {
+            while($r = $reportes->fetch_assoc()) {
+                $totalViajesCount++;
+                $sumaKmTotales += floatval($r['km_total'] ?? 0);
+                $sumaGastosGenerales += floatval($r['total_general'] ?? 0);
+                $arrayReportes[] = $r;
+            }
         }
         ?>
 
-        <!-- Tarjetas de Resumen (KPIs Dinámicos) -->
+        <!-- Tarjetas de Resumen (KPIs) -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px;">
             <div class="card" style="background: linear-gradient(135deg, #4A148C, #6A1B9A); color: white; margin-bottom:0;">
                 <h5 style="font-size: 14px; opacity: 0.9;">Viajes / Rutas Filtradas</h5>
@@ -985,21 +988,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <form method="POST" class="form-inline" style="flex-wrap: wrap; gap: 10px;">
                 <input type="hidden" name="crear_ruta" value="1">
                 <div style="display:flex; flex-direction:column; gap:8px; min-width: 250px;">
-                    <!-- NUEVO CAMPO: Número de Ruta -->
                     <input type="text" name="numero_ruta" placeholder="Número de ruta (ej. R-01)" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
 
                     <select name="chofer_id" required style="width: 100%;">
                         <option value="">-- Seleccionar Chofer --</option>
-                        <?php while($row = $choferes->fetch_assoc()): ?>
+                        <?php if($choferes): while($row = $choferes->fetch_assoc()): ?>
                             <option value="<?= $row['id'] ?>"><?= htmlspecialchars($row['nombre_chofer']) ?> (<?= $row['placas'] ?>)</option>
-                        <?php endwhile; ?>
+                        <?php endwhile; endif; ?>
                     </select>
 
                     <select name="auxiliar_nombre" style="width: 100%;">
                         <option value="">-- Sin Auxiliar / Opcional --</option>
-                        <?php while($aux = $auxiliares_lista->fetch_assoc()): ?>
+                        <?php if($auxiliares_lista): while($aux = $auxiliares_lista->fetch_assoc()): ?>
                             <option value="<?= htmlspecialchars($aux['nombre']) ?>"><?= htmlspecialchars($aux['nombre']) ?></option>
-                        <?php endwhile; ?>
+                        <?php endwhile; endif; ?>
                     </select>
                 </div>
                 
@@ -1011,11 +1013,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <p><strong>Selecciona los destinos para esta ruta:</strong> 
                     <span style="color:#666; font-size:12px;">(marca los clientes en el orden que debe visitarlos el chofer)</span></p>
                     
-                    <!-- 🔍 FILTRO EN TIEMPO REAL PARA CREAR RUTA -->
                     <input type="text" id="filtroSeleccionDestinos" placeholder="🔍 Escribe para filtrar clientes o sucursales..." onkeyup="filtrarSeleccionDestinos()" style="width: 100%; padding: 8px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px;">
 
                     <div class="seleccion-destinos">
-                        <?php if($destinos->num_rows == 0): ?>
+                        <?php if(!$destinos || $destinos->num_rows == 0): ?>
                             <p style="color: #999; text-align:center; padding:20px;">No hay destinos registrados. Ve a la sección <strong>Destinos</strong> para agregar.</p>
                         <?php else: ?>
                             <?php while($row = $destinos->fetch_assoc()): ?>
@@ -1050,7 +1051,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <a href="?seccion=rutas" class="btn btn-primary">Limpiar</a>
             </form>
             
-            <?php if($rutas->num_rows == 0): ?>
+            <?php if(!$rutas || $rutas->num_rows == 0): ?>
                 <p style="margin-top:15px;">No hay rutas registradas.</p>
             <?php else: ?>
                 <div style="overflow-x: auto; margin-top:15px;">
@@ -1080,9 +1081,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     ORDER BY p.orden ASC
                                 ");
                                 $destinos_list = [];
-                                while($d = $destinos_ruta->fetch_assoc()) {
-                                    $nombre = $d['razon_social'] ?? $d['destino_manual'] ?? 'Destino';
-                                    $destinos_list[] = $nombre;
+                                if ($destinos_ruta) {
+                                    while($d = $destinos_ruta->fetch_assoc()) {
+                                        $nombre = $d['razon_social'] ?? $d['destino_manual'] ?? 'Destino';
+                                        $destinos_list[] = $nombre;
+                                    }
                                 }
                                 $destinos_text = implode(', ', array_slice($destinos_list, 0, 3));
                                 if (count($destinos_list) > 3) $destinos_text .= ' +' . (count($destinos_list) - 3) . ' más';
@@ -1129,7 +1132,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <button type="submit" name="agregar_destino" class="btn btn-success">➕ Agregar</button>
             </form>
 
-            <!-- 🔍 FILTRO EN TIEMPO REAL PARA LA TABLA DE DESTINOS -->
             <div style="margin: 15px 0;">
                 <input type="text" id="filtroTablaDestinos" placeholder="🔍 Buscar por Razón Social o Sucursal para validar duplicados..." onkeyup="filtrarTablaDestinos()" style="width: 100%; max-width: 400px; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
             </div>
@@ -1140,7 +1142,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <tr><th>ID</th><th>Razón Social</th><th>Sucursal</th><th>Dirección</th><th>Acciones</th></tr>
                     </thead>
                     <tbody>
-                        <?php while($row = $destinos->fetch_assoc()): ?>
+                        <?php if ($destinos): while($row = $destinos->fetch_assoc()): ?>
                         <tr>
                             <td><?= $row['id'] ?></td>
                             <td id="ds_razon_<?= $row['id'] ?>"><?= htmlspecialchars($row['razon_social']) ?></td>
@@ -1154,7 +1156,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </form>
                             </td>
                         </tr>
-                        <?php endwhile; ?>
+                        <?php endwhile; endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -1171,18 +1173,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             unset($_SESSION['mensaje_error']);
         }
 
-        try {
-            $stmt_u = $pdo->query("SELECT * FROM choferes ORDER BY id DESC");
-            $choferes_app = $stmt_u->fetchAll();
-        } catch (Exception $e) {
-            $choferes_app = [];
+        $choferes_app = [];
+        $res_u = $conn->query("SELECT * FROM choferes ORDER BY id DESC");
+        if ($res_u) {
+            while ($row_u = $res_u->fetch_assoc()) {
+                $choferes_app[] = $row_u;
+            }
         }
         ?>
         <div class="card">
             <h2>📱 Gestión de Accesos App y Choferes</h2>
             <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Administra los choferes, sus PINs de acceso a la aplicación móvil, placas y número económico.</p>
 
-            <!-- Formulario para Registrar / Editar -->
             <div class="card shadow-sm mb-4" style="background: #fafafa; border: 1px solid #eee;">
                 <div class="card-body">
                     <h5 class="mb-3" style="color: #4A148C; font-size: 16px;">Registrar o Modificar Chofer</h5>
@@ -1214,7 +1216,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
             </div>
 
-            <!-- Tabla de Choferes -->
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
@@ -1276,7 +1277,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <table class="tabla-catalogo">
                     <thead><tr><th>ID</th><th>Placa</th><th>Acciones</th></tr></thead>
                     <tbody>
-                        <?php while($row = $catalogos['placas']->fetch_assoc()): ?>
+                        <?php if ($catalogos['placas']): while($row = $catalogos['placas']->fetch_assoc()): ?>
                         <tr>
                             <td><?= $row['id'] ?></td>
                             <td id="placa_<?= $row['id'] ?>"><?= htmlspecialchars($row['placa']) ?></td>
@@ -1287,7 +1288,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </form>
                             </td>
                         </tr>
-                        <?php endwhile; ?>
+                        <?php endwhile; endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -1300,7 +1301,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <table class="tabla-catalogo">
                     <thead><tr><th>ID</th><th>Número Económico</th><th>Acciones</th></tr></thead>
                     <tbody>
-                        <?php while($row = $catalogos['no_economicos']->fetch_assoc()): ?>
+                        <?php if ($catalogos['no_economicos']): while($row = $catalogos['no_economicos']->fetch_assoc()): ?>
                         <tr>
                             <td><?= $row['id'] ?></td>
                             <td id="noe_<?= $row['id'] ?>"><?= htmlspecialchars($row['no_economico']) ?></td>
@@ -1311,14 +1312,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </form>
                             </td>
                         </tr>
-                        <?php endwhile; ?>
+                        <?php endwhile; endif; ?>
                     </tbody>
                 </table>
             </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
-            <!-- 👤 CHOFERES -->
             <div class="card">
                 <h2>👤 Choferes</h2>
                 <form method="POST" class="form-inline">
@@ -1330,7 +1330,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <table class="tabla-catalogo">
                     <thead><tr><th>ID</th><th>Nombre</th><th>Placas</th><th>No. Económico</th><th>Acciones</th></tr></thead>
                     <tbody>
-                        <?php while($row = $catalogos['choferes']->fetch_assoc()): ?>
+                        <?php if ($catalogos['choferes']): while($row = $catalogos['choferes']->fetch_assoc()): ?>
                         <tr>
                             <td><?= $row['id'] ?></td>
                             <td id="chofer_nombre_<?= $row['id'] ?>"><?= htmlspecialchars($row['nombre_chofer']) ?></td>
@@ -1344,12 +1344,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </form>
                             </td>
                         </tr>
-                        <?php endwhile; ?>
+                        <?php endwhile; endif; ?>
                     </tbody>
                 </table>
             </div>
 
-            <!-- 🤝 AUXILIARES DE CONDUCTOR -->
             <div class="card">
                 <h2>🤝 Auxiliares de Conductor</h2>
                 <form method="POST" class="form-inline">
@@ -1359,7 +1358,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <table class="tabla-catalogo">
                     <thead><tr><th>ID</th><th>Nombre Auxiliar</th><th>Acciones</th></tr></thead>
                     <tbody>
-                        <?php while($row = $catalogos['auxiliares']->fetch_assoc()): ?>
+                        <?php if ($catalogos['auxiliares']): while($row = $catalogos['auxiliares']->fetch_assoc()): ?>
                         <tr>
                             <td><?= $row['id'] ?></td>
                             <td id="aux_nombre_<?= $row['id'] ?>"><?= htmlspecialchars($row['nombre']) ?></td>
@@ -1371,7 +1370,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </form>
                             </td>
                         </tr>
-                        <?php endwhile; ?>
+                        <?php endwhile; endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -1390,10 +1389,12 @@ function toggleMenu() {
 
 function girarLogoInferior() {
     const logo = document.getElementById('logoFijo');
-    logo.classList.remove('girar-logo');
-    void logo.offsetWidth; 
-    logo.classList.add('girar-logo');
-    setTimeout(() => logo.classList.remove('girar-logo'), 5000);
+    if (logo) {
+        logo.classList.remove('girar-logo');
+        void logo.offsetWidth; 
+        logo.classList.add('girar-logo');
+        setTimeout(() => logo.classList.remove('girar-logo'), 5000);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1406,7 +1407,8 @@ document.addEventListener('DOMContentLoaded', () => {
         contenedor.querySelectorAll('input[type="checkbox"]').forEach(function(checkbox) {
             checkbox.addEventListener('change', function() {
                 const contador = document.querySelectorAll('input[name="destinos[]"]:checked').length;
-                document.getElementById('contadorDestinos').textContent = contador;
+                const elemContador = document.getElementById('contadorDestinos');
+                if (elemContador) elemContador.textContent = contador;
 
                 if (this.checked) {
                     ordenClicks.push(this.value);
@@ -1421,10 +1423,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 🔍 FUNCIONES DE FILTRADO EN TIEMPO REAL
 function filtrarTablaDestinos() {
     let input = document.getElementById('filtroTablaDestinos').value.toLowerCase();
     let table = document.getElementById('tablaDestinos');
+    if (!table) return;
     let tr = table.getElementsByTagName('tr');
 
     for (let i = 1; i < tr.length; i++) {
@@ -1486,7 +1488,6 @@ function cerrarImageModal() {
     modal.style.display = 'none';
 }
 
-// 🖼️ VISOR MODAL UNIVERSAL CON MARCA DE AGUA Y BOTÓN DE DESCARGA A UN LADO
 function verImagenGrandeConMarca(src, titulo, datos) {
     const modal = document.getElementById('imageModal');
     modal.style.display = 'flex';
@@ -1504,15 +1505,10 @@ function verImagenGrandeConMarca(src, titulo, datos) {
         <div style="position:relative; max-width:90%; max-height:85vh; display:inline-block; text-align:center;" onclick="event.stopPropagation()">
             <img id="modalImage" src="${src}" crossorigin="anonymous" style="max-width:100%; max-height:75vh; border-radius:10px; display:block; margin:0 auto;">
             
-            <!-- Contenedor flotante: Marca de agua y Botón a un lado -->
             <div style="position:absolute; bottom:15px; left:15px; right:15px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; pointer-events:none;">
-                
-                <!-- Marca de Agua -->
                 <div style="background:rgba(0,0,0,0.85); color:#ffffff; padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.3; font-family:sans-serif; border-left:4px solid #4A148C; box-shadow:0 3px 10px rgba(0,0,0,0.5); text-align:left; pointer-events:auto; max-width:70%;">
                     ${htmlDatos}
                 </div>
-
-                <!-- Botón de Descarga al lado -->
                 <button onclick="descargarFotoConMarca('${src}', '${titulo}', '${datosJSON}')" class="btn btn-success" style="background:#2e7d32; padding:10px 16px; font-size:13px; cursor:pointer; border:none; border-radius:6px; color:white; font-weight:bold; white-space:nowrap; pointer-events:auto; box-shadow:0 3px 10px rgba(0,0,0,0.5);">
                     📥 Descargar Fotografía
                 </button>
@@ -1521,7 +1517,6 @@ function verImagenGrandeConMarca(src, titulo, datos) {
     `;
 }
 
-//PROCESAR E INCRUSTAR LA MARCA DE AGUA EN LA FOTO PARA DESCARGA DIRECTA
 function descargarFotoConMarca(src, titulo, datosEncoded) {
     const datos = JSON.parse(decodeURIComponent(datosEncoded));
     const img = new Image();
@@ -1535,10 +1530,8 @@ function descargarFotoConMarca(src, titulo, datosEncoded) {
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
         
-        // 1. Dibujar imagen original
         ctx.drawImage(img, 0, 0);
         
-        // Escalar elementos visuales según resolución
         const escala = Math.max(canvas.width / 1000, 1);
         const fontSize = Math.round(18 * escala);
         const padding = Math.round(15 * escala);
@@ -1561,18 +1554,15 @@ function descargarFotoConMarca(src, titulo, datosEncoded) {
         const posX = Math.round(20 * escala);
         const posY = canvas.height - boxHeight - Math.round(20 * escala);
         
-        // 2. Fondo semitransparente
         ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
         ctx.fillRect(posX, posY, boxWidth, boxHeight);
         
-        // 3. Barra vertical morada
         ctx.fillStyle = '#4A148C';
         ctx.fillRect(posX, posY, Math.round(6 * escala), boxHeight);
         
-        // 4. Texto informativo
         lineas.forEach((linea, index) => {
             if (index === 0) {
-                ctx.fillStyle = '#FFC107'; // Encabezado amarillo
+                ctx.fillStyle = '#FFC107';
                 ctx.font = `bold ${fontSize}px sans-serif`;
             } else {
                 ctx.fillStyle = '#FFFFFF';
@@ -1582,7 +1572,6 @@ function descargarFotoConMarca(src, titulo, datosEncoded) {
             ctx.fillText(linea, posX + padding + Math.round(6 * escala), textY);
         });
         
-        // 5. Descarga automática
         const enlace = document.createElement('a');
         enlace.download = `comprobante_acarez_${Date.now()}.jpg`;
         enlace.href = canvas.toDataURL('image/jpeg', 0.95);
@@ -1590,7 +1579,6 @@ function descargarFotoConMarca(src, titulo, datosEncoded) {
     };
 }
 
-// 🪟 CONTROL DE VENTANAS EMERGENTES (MODALES) PARA EDICIÓN
 function editarChofer(id) {
     document.getElementById('modal_edit_chofer_id').value = id;
     document.getElementById('modal_edit_nombre_chofer').value = document.getElementById('chofer_nombre_' + id).innerText;
@@ -1625,7 +1613,6 @@ function cerrarEditarDestinoModal() {
     document.getElementById('editarDestinoModal').style.display = 'none';
 }
 
-// Funciones para gestionar choferes y accesos app desde el panel unificado
 function editarChoferApp(id, nombre, pin, placas, noEco) {
     document.getElementById('form-id').value = id;
     document.getElementById('form-nombre').value = nombre;
@@ -1655,7 +1642,7 @@ function verDetalleRuta(id) {
         .then(res => res.json())
         .then(data => {
             if (!data.success) {
-                body.innerHTML = '<span class="cerrar-modal" onclick="cerrarModal()">&times;</span><div style="padding:20px; color:red;">Error al cargar los datos</div>';
+                body.innerHTML = '<span class="cerrar-modal" onclick="cerrarModal()">&times;</span><div style="padding:20px; color:red;">Error al cargar los datos: ' + (data.error || 'Respuesta inválida') + '</div>';
                 return;
             }
             const r = data.ruta;
@@ -1673,7 +1660,6 @@ function verDetalleRuta(id) {
             const fotoInicioSrc = prepararSrc(r.foto_inicio);
             const fotoFinSrc = prepararSrc(r.foto_fin);
 
-            // Objetos estructurados para marca de agua de odómetros
             const datosOdoInicio = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Km Inicial": (r.km_inicial || 0) + ' km', "Fecha": r.fecha_inicio || '' }).replace(/"/g, '&quot;');
             const datosOdoFin = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Km Final": (r.km_final || 0) + ' km', "Total Recorrido": (r.km_total || 0) + ' km', "Fecha": r.fecha_fin || r.fecha_inicio || '' }).replace(/"/g, '&quot;');
 
@@ -1709,7 +1695,6 @@ function verDetalleRuta(id) {
                     gastosDetalleHtml += '</div>';
                 }
 
-                // 📄 Renderizado de Qukas con sus respectivas observaciones
                 let cucasDetalleHtml = '';
                 if (cucasParada.length > 0) {
                     const cucasAgrupadas = {};
@@ -1808,7 +1793,7 @@ function verDetalleRuta(id) {
             `;
         })
         .catch(err => {
-            body.innerHTML = '<span class="cerrar-modal" onclick="cerrarModal()">&times;</span><div style="padding:20px; color:red;">Error al cargar los datos</div>';
+            body.innerHTML = '<span class="cerrar-modal" onclick="cerrarModal()">&times;</span><div style="padding:20px; color:red;">Error de conexión al cargar los datos</div>';
         });
 }
 
@@ -1836,7 +1821,7 @@ function editarNoEconomico(id, actual) {
 
 document.getElementById('btnDetalleSemana')?.addEventListener('click', function() {
     const semanaSelect = document.getElementById('semanaSelect');
-    const semanaValor = semanaSelect.value;
+    const semanaValor = semanaSelect ? semanaSelect.value : '';
     if (!semanaValor) {
         alert('Por favor, selecciona una semana para ver el detalle');
         return;
