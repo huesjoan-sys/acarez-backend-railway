@@ -96,15 +96,15 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
         $ruta['total_gastos'] = $total_gastos;
     }
     
-    // OBSERVACIÓN: Extrae todos los gastos y facturas (cucas) asociados a esta ruta para mostrarlos en el modal.
-    $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, foto, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
+    // OBSERVACIÓN: Extrae todos los gastos y facturas (cucas) asociados a esta ruta incluyendo observaciones.
+    $sql_lista_gastos = "SELECT id, parada_id, concepto, monto, foto, observaciones, fecha FROM gastos WHERE ruta_id = $ruta_id ORDER BY id DESC";
     $res_lista_gastos = $conn->query($sql_lista_gastos);
     $gastos = [];
     while ($g = $res_lista_gastos->fetch_assoc()) {
         $gastos[] = $g;
     }
 
-    $sql_lista_cucas = "SELECT id, parada_id, numero_cuca, foto_cuca, fecha FROM cucas WHERE ruta_id = $ruta_id ORDER BY id ASC";
+    $sql_lista_cucas = "SELECT id, parada_id, numero_cuca, observaciones, foto_cuca, fecha FROM cucas WHERE ruta_id = $ruta_id ORDER BY id ASC";
     $res_lista_cucas = $conn->query($sql_lista_cucas);
     $cucas = [];
     while ($c = $res_lista_cucas->fetch_assoc()) {
@@ -137,9 +137,6 @@ if ($accion == 'get_ruta_data' && !empty($_GET['ruta_id'])) {
 // ==============================================
 // 3. FUNCIONES DE APOYO
 // ==============================================
-// OBSERVACIÓN: Funciones modulares para construir las consultas de las distintas secciones del panel, 
-// lo que ayuda a mantener el código HTML más limpio.
-
 function obtenerReportes($conn, $filtros = []) {
     $where = "1=1";
     
@@ -168,8 +165,6 @@ function obtenerReportes($conn, $filtros = []) {
     return $conn->query($sql);
 }
 
-// OBSERVACIÓN: Extrae las semanas únicas basándose en las fechas de inicio de los viajes, 
-// formateadas como "Año-WSemana" (ej. 2026-W05).
 function obtenerSemanasDisponibles($conn) {
     return $conn->query("SELECT DISTINCT CONCAT(YEAR(fecha_inicio), '-W', LPAD(WEEK(fecha_inicio, 1), 2, '0')) as semana, MIN(DATE(fecha_inicio)) as inicio, MAX(DATE(fecha_inicio)) as fin FROM rutas GROUP BY semana ORDER BY semana DESC");
 }
@@ -199,8 +194,6 @@ function obtenerRutas($conn, $filtros = []) {
 // ==============================================
 // 4. FUNCIÓN PARA NORMALIZAR NÚMERO ECONÓMICO
 // ==============================================
-// OBSERVACIÓN: Expresión regular que asegura que los números económicos siempre sigan el formato "Letra-Número" (ej. A-01),
-// añadiendo el guion automáticamente si el usuario lo olvidó al escribir.
 function normalizarNoEconomico($no) {
     $no = trim($no);
     if (preg_match('/^([A-Z])(\d+)$/', $no, $matches)) {
@@ -224,11 +217,9 @@ function manejarCatalogos($conn) {
 // ==============================================
 // 5. PROCESAR POST (App de Flutter y Formularios Web)
 // ==============================================
-// OBSERVACIÓN: Este bloque agrupa todas las acciones que modifican la base de datos (INSERT, UPDATE, DELETE).
-// Usa el patrón PRG (Post/Redirect/Get) con `header("Location: ...")` para evitar que las acciones se dupliquen si el usuario recarga la página.
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
-    // ========== GESTIÓN DE ACCESOS APP Y CHOFERES (TABLA CHOFERES) ==========
+    // ========== GESTIÓN DE ACCESOS APP Y CHOFERES ==========
     if (isset($_POST['accion_usuario_app'])) {
         $sub_accion = $_POST['accion_usuario_app'];
 
@@ -241,7 +232,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             if (!empty($nombre) && !empty($pin)) {
                 try {
-                    // OBSERVACIÓN: Se usa PDO con sentencias preparadas (?) para evitar inyecciones SQL.
                     if (!empty($id)) {
                         $stmt = $pdo->prepare("UPDATE choferes SET nombre_chofer = ?, pin_password = ?, placas = ?, numero_economico = ? WHERE id = ?");
                         $stmt->execute([$nombre, $pin, $placas, $no_eco, $id]);
@@ -297,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit;
     }
 
-    // ========== CREAR RUTA (Con redirección PRG para evitar duplicados al refrescar) ==========
+    // ========== CREAR RUTA ==========
     if (isset($_POST['crear_ruta'])) {
         $numero_ruta = trim($_POST['numero_ruta'] ?? '');
         $chofer_id = intval($_POST['chofer_id']);
@@ -306,7 +296,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $destinos_seleccionados = $_POST['destinos'] ?? [];
         
         if ($chofer_id > 0 && !empty($destinos_seleccionados)) {
-            // OBSERVACIÓN: Busca el nombre y datos del chofer por su ID para almacenarlos directamente en la tabla de rutas.
             $chofer_sql = "SELECT nombre_chofer, placas, numero_economico FROM choferes WHERE id = $chofer_id AND activo = 1";
             $chofer_result = $conn->query($chofer_sql);
             $chofer = $chofer_result->fetch_assoc();
@@ -318,11 +307,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $origen = 'Pendiente';
                 $stmt->bind_param("sssssss", $numero_ruta, $chofer['nombre_chofer'], $auxiliar_nombre, $chofer['placas'], $chofer['numero_economico'], $origen, $fecha_inicio);
                 $stmt->execute();
-                $ruta_id = $conn->insert_id; // Se guarda el ID de la ruta recién creada para asignarle las paradas
+                $ruta_id = $conn->insert_id;
                 $stmt->close();
                 
                 $orden = 0;
-                // OBSERVACIÓN: Por cada destino seleccionado en el formulario, se crea un registro en la tabla `paradas`.
                 foreach ($destinos_seleccionados as $destino_id) {
                     $orden++;
                     $stmt = $conn->prepare("INSERT INTO paradas (ruta_id, orden, destino_id, km_actual) VALUES (?, ?, ?, NULL)");
@@ -452,7 +440,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     if (isset($_POST['eliminar_auxiliar'])) {
         $id = intval($_POST['id']);
-        // OBSERVACIÓN: Eliminación suave (Soft Delete) cambiando el estatus a 0 en lugar de borrar el registro físico.
         $conn->query("UPDATE auxiliares SET activo = 0 WHERE id = $id");
         header("Location: ?seccion=catalogos");
         exit;
@@ -502,7 +489,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <title>ACAREZ - Panel Administrativo</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* OBSERVACIÓN: Estilos base generales del panel */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
         .header {
@@ -597,7 +583,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             to { transform: rotate(360deg); }
         }
         
-        /* OBSERVACIÓN: Estilos para la ventana emergente de detalles (Modal) */
         .detalle-modal {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 2000;
@@ -636,7 +621,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .error-msg { color: #dc3545; background: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
         .success-msg { color: #28a745; background: #d4edda; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
         
-        /* OBSERVACIÓN: Estilos de los badges (etiquetas de estado) */
         .badge {
             display: inline-block;
             padding: 3px 10px;
@@ -649,7 +633,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .badge-completada { background: #cce5ff; color: #004085; }
         .badge-cancelada { background: #f8d7da; color: #721c24; }
         
-        /* OBSERVACIÓN: Contenedor para seleccionar destinos con un listado con scroll */
         .seleccion-destinos {
             max-height: 250px;
             overflow-y: auto;
@@ -706,7 +689,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <img src="imagenes/acarez_2.png" alt="Logo Acarez">
 </div>
 
-<!-- OBSERVACIÓN: Contenedor vacío donde se cargará dinámicamente el HTML mediante Fetch API (JS) -->
 <div id="detalleModal" class="detalle-modal">
     <div class="detalle-content" id="modalBody">
         <span class="cerrar-modal" onclick="cerrarModal()">&times;</span>
@@ -798,7 +780,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 </div>
 
-<!-- OBSERVACIÓN: Modal utilizado por la función verImagenGrandeConMarca() en JS -->
 <div id="imageModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:3000; align-items:center; justify-content:center;" onclick="cerrarImageModal()">
     <span style="position:absolute; top:20px; right:35px; color:white; font-size:40px; cursor:pointer;" onclick="cerrarImageModal()">&times;</span>
     <img id="modalImage" style="max-width:90%; max-height:90%; border-radius:10px;">
@@ -808,7 +789,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     <?php if ($seccion == 'reportes'): ?>
         <?php
-        // OBSERVACIÓN: Extracción de variables GET utilizadas para poblar el formulario de filtros en la vista
         $semana = $_GET['semana'] ?? '';
         $fecha_inicio = $_GET['fecha_inicio'] ?? '';
         $fecha_fin = $_GET['fecha_fin'] ?? '';
@@ -877,7 +857,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
         
         <?php 
-        // OBSERVACIÓN: Procesamiento pre-renderizado del loop de reportes para calcular totales (KPIs) a mostrar en la parte superior.
         $totalViajesCount = 0;
         $sumaKmTotales = 0;
         $sumaGastosGenerales = 0;
@@ -890,7 +869,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         ?>
 
-        <!-- Tarjetas de Resumen (KPIs Dinámicos) -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px;">
             <div class="card" style="background: linear-gradient(135deg, #4A148C, #6A1B9A); color: white; margin-bottom:0;">
                 <h5 style="font-size: 14px; opacity: 0.9;">Viajes / Rutas Filtradas</h5>
@@ -932,14 +910,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <?php 
                         $fecha_actual = '';
                         $suma_km_dia = 0;
-                        // OBSERVACIÓN: Se itera sobre el arreglo creado arriba. Se usa para inyectar filas de "Resumen por día".
                         foreach($arrayReportes as $row): 
                             $km_inicial = isset($row['km_inicial']) ? floatval($row['km_inicial']) : 0;
                             $km_final   = isset($row['km_final']) ? floatval($row['km_final']) : 0;
                             $km_total   = isset($row['km_total']) ? floatval($row['km_total']) : 0;
                             $fecha_row = date('Y-m-d', strtotime($row['fecha_inicio']));
                             
-                            // OBSERVACIÓN: Cambio de fecha detectado, imprime el subtotal del día anterior.
                             if ($fecha_actual != '' && $fecha_actual != $fecha_row) {
                                 echo '<tr class="resumen-dia">
                                         <td colspan="8" style="text-align:right;">Total Km del día ' . date('d/m/Y', strtotime($fecha_actual)) . ':</td>
@@ -1001,7 +977,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             unset($_SESSION['mensaje_error']);
         }
 
-        // OBSERVACIÓN: Endpoint de borrado directo desde URL para Rutas
         if (isset($_GET['eliminar_ruta']) && is_numeric($_GET['eliminar_ruta'])) {
             $ruta_id = intval($_GET['eliminar_ruta']);
             $conn->query("DELETE FROM paradas WHERE ruta_id = $ruta_id");
@@ -1026,7 +1001,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <form method="POST" class="form-inline" style="flex-wrap: wrap; gap: 10px;">
                 <input type="hidden" name="crear_ruta" value="1">
                 <div style="display:flex; flex-direction:column; gap:8px; min-width: 250px;">
-                    <!-- NUEVO CAMPO: Número de Ruta -->
                     <input type="text" name="numero_ruta" placeholder="Número de ruta (ej. R-01)" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
 
                     <select name="chofer_id" required style="width: 100%;">
@@ -1052,7 +1026,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <p><strong>Selecciona los destinos para esta ruta:</strong> 
                     <span style="color:#666; font-size:12px;">(marca los clientes en el orden que debe visitarlos el chofer)</span></p>
                     
-                    <!-- 🔍 FILTRO EN TIEMPO REAL PARA CREAR RUTA -->
                     <input type="text" id="filtroSeleccionDestinos" placeholder="🔍 Escribe para filtrar clientes o sucursales..." onkeyup="filtrarSeleccionDestinos()" style="width: 100%; padding: 8px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px;">
 
                     <div class="seleccion-destinos">
@@ -1113,7 +1086,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </thead>
                         <tbody>
                             <?php while($row = $rutas->fetch_assoc()): 
-                                // OBSERVACIÓN: Extrae los destinos para formar la previsualización de ruta (ej. Cliente 1, Cliente 2 +X más)
                                 $destinos_ruta = $conn->query("
                                     SELECT p.*, d.razon_social, d.sucursal 
                                     FROM paradas p 
@@ -1171,7 +1143,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <button type="submit" name="agregar_destino" class="btn btn-success">➕ Agregar</button>
             </form>
 
-            <!-- 🔍 FILTRO EN TIEMPO REAL PARA LA TABLA DE DESTINOS -->
             <div style="margin: 15px 0;">
                 <input type="text" id="filtroTablaDestinos" placeholder="🔍 Buscar por Razón Social o Sucursal para validar duplicados..." onkeyup="filtrarTablaDestinos()" style="width: 100%; max-width: 400px; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
             </div>
@@ -1213,7 +1184,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             unset($_SESSION['mensaje_error']);
         }
 
-        // OBSERVACIÓN: Aquí se usa PDO ($pdo) en lugar de Mysqli ($conn). Asegúrate de que conexion.php contenga $pdo.
         try {
             $stmt_u = $pdo->query("SELECT * FROM choferes ORDER BY id DESC");
             $choferes_app = $stmt_u->fetchAll();
@@ -1225,7 +1195,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <h2>📱 Gestión de Accesos App y Choferes</h2>
             <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Administra los choferes, sus PINs de acceso a la aplicación móvil, placas y número económico.</p>
 
-            <!-- Formulario para Registrar / Editar -->
             <div class="card shadow-sm mb-4" style="background: #fafafa; border: 1px solid #eee;">
                 <div class="card-body">
                     <h5 class="mb-3" style="color: #4A148C; font-size: 16px;">Registrar o Modificar Chofer</h5>
@@ -1257,7 +1226,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
             </div>
 
-            <!-- Tabla de Choferes -->
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
@@ -1361,7 +1329,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
-            <!-- 👤 CHOFERES -->
             <div class="card">
                 <h2>👤 Choferes</h2>
                 <form method="POST" class="form-inline">
@@ -1392,7 +1359,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </table>
             </div>
 
-            <!-- 🤝 AUXILIARES DE CONDUCTOR -->
             <div class="card">
                 <h2>🤝 Auxiliares de Conductor</h2>
                 <form method="POST" class="form-inline">
@@ -1423,7 +1389,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </div>
 
 <script>
-// OBSERVACIÓN: Control del menú lateral en versión móvil
 function toggleMenu() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('overlay');
@@ -1440,7 +1405,6 @@ function girarLogoInferior() {
     setTimeout(() => logo.classList.remove('girar-logo'), 5000);
 }
 
-// OBSERVACIÓN: Script para mover de lugar los destinos seleccionados visualmente en la caja
 document.addEventListener('DOMContentLoaded', () => {
     girarLogoInferior();
 
@@ -1466,8 +1430,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 🔍 FUNCIONES DE FILTRADO EN TIEMPO REAL
-// OBSERVACIÓN: Filtran elementos de la vista sin hacer peticiones nuevas al servidor (manipulación del DOM puro).
 function filtrarTablaDestinos() {
     let input = document.getElementById('filtroTablaDestinos').value.toLowerCase();
     let table = document.getElementById('tablaDestinos');
@@ -1504,7 +1466,6 @@ function filtrarSeleccionDestinos() {
     }
 }
 
-// OBSERVACIÓN: Funciones que redirigen a scripts externos para exportar pasando los parámetros actuales de la URL.
 function exportarExcel() {
     let params = new URLSearchParams(window.location.search);
     window.location.href = 'exportar_excel.php?' + params.toString();
@@ -1533,8 +1494,6 @@ function cerrarImageModal() {
     modal.style.display = 'none';
 }
 
-// 🖼️ VISOR MODAL UNIVERSAL CON MARCA DE AGUA Y BOTÓN DE DESCARGA A UN LADO
-// OBSERVACIÓN: Renderiza el contenedor para visualizar fotos en grande con metadatos superpuestos.
 function verImagenGrandeConMarca(src, titulo, datos) {
     const modal = document.getElementById('imageModal');
     modal.style.display = 'flex';
@@ -1552,15 +1511,12 @@ function verImagenGrandeConMarca(src, titulo, datos) {
         <div style="position:relative; max-width:90%; max-height:85vh; display:inline-block; text-align:center;" onclick="event.stopPropagation()">
             <img id="modalImage" src="${src}" crossorigin="anonymous" style="max-width:100%; max-height:75vh; border-radius:10px; display:block; margin:0 auto;">
             
-            <!-- Contenedor flotante: Marca de agua y Botón a un lado -->
             <div style="position:absolute; bottom:15px; left:15px; right:15px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; pointer-events:none;">
                 
-                <!-- Marca de Agua -->
                 <div style="background:rgba(0,0,0,0.85); color:#ffffff; padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.3; font-family:sans-serif; border-left:4px solid #4A148C; box-shadow:0 3px 10px rgba(0,0,0,0.5); text-align:left; pointer-events:auto; max-width:70%;">
                     ${htmlDatos}
                 </div>
 
-                <!-- Botón de Descarga al lado -->
                 <button onclick="descargarFotoConMarca('${src}', '${titulo}', '${datosJSON}')" class="btn btn-success" style="background:#2e7d32; padding:10px 16px; font-size:13px; cursor:pointer; border:none; border-radius:6px; color:white; font-weight:bold; white-space:nowrap; pointer-events:auto; box-shadow:0 3px 10px rgba(0,0,0,0.5);">
                     📥 Descargar Fotografía
                 </button>
@@ -1569,13 +1525,10 @@ function verImagenGrandeConMarca(src, titulo, datos) {
     `;
 }
 
-//PROCESAR E INCRUSTAR LA MARCA DE AGUA EN LA FOTO PARA DESCARGA DIRECTA
-// OBSERVACIÓN: Utiliza un elemento <canvas> nativo para incrustar gráficamente los metadatos sobre la imagen 
-// antes de forzar su descarga local en el navegador del usuario.
 function descargarFotoConMarca(src, titulo, datosEncoded) {
     const datos = JSON.parse(decodeURIComponent(datosEncoded));
     const img = new Image();
-    img.crossOrigin = 'anonymous'; // Necesario para manipular la imagen en un canvas sin que marque error de CORS
+    img.crossOrigin = 'anonymous';
     img.src = src;
     
     img.onload = function() {
@@ -1585,10 +1538,8 @@ function descargarFotoConMarca(src, titulo, datosEncoded) {
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
         
-        // 1. Dibujar imagen original
         ctx.drawImage(img, 0, 0);
         
-        // Escalar elementos visuales según resolución
         const escala = Math.max(canvas.width / 1000, 1);
         const fontSize = Math.round(18 * escala);
         const padding = Math.round(15 * escala);
@@ -1611,18 +1562,15 @@ function descargarFotoConMarca(src, titulo, datosEncoded) {
         const posX = Math.round(20 * escala);
         const posY = canvas.height - boxHeight - Math.round(20 * escala);
         
-        // 2. Fondo semitransparente
         ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
         ctx.fillRect(posX, posY, boxWidth, boxHeight);
         
-        // 3. Barra vertical morada
         ctx.fillStyle = '#4A148C';
         ctx.fillRect(posX, posY, Math.round(6 * escala), boxHeight);
         
-        // 4. Texto informativo
         lineas.forEach((linea, index) => {
             if (index === 0) {
-                ctx.fillStyle = '#FFC107'; // Encabezado amarillo
+                ctx.fillStyle = '#FFC107';
                 ctx.font = `bold ${fontSize}px sans-serif`;
             } else {
                 ctx.fillStyle = '#FFFFFF';
@@ -1632,7 +1580,6 @@ function descargarFotoConMarca(src, titulo, datosEncoded) {
             ctx.fillText(linea, posX + padding + Math.round(6 * escala), textY);
         });
         
-        // 5. Descarga automática
         const enlace = document.createElement('a');
         enlace.download = `comprobante_acarez_${Date.now()}.jpg`;
         enlace.href = canvas.toDataURL('image/jpeg', 0.95);
@@ -1640,8 +1587,6 @@ function descargarFotoConMarca(src, titulo, datosEncoded) {
     };
 }
 
-// 🪟 CONTROL DE VENTANAS EMERGENTES (MODALES) PARA EDICIÓN
-// OBSERVACIÓN: Rellenan los campos ocultos y de texto del formulario cuando se hace clic en "Editar".
 function editarChofer(id) {
     document.getElementById('modal_edit_chofer_id').value = id;
     document.getElementById('modal_edit_nombre_chofer').value = document.getElementById('chofer_nombre_' + id).innerText;
@@ -1676,7 +1621,6 @@ function cerrarEditarDestinoModal() {
     document.getElementById('editarDestinoModal').style.display = 'none';
 }
 
-// Funciones para gestionar choferes y accesos app desde el panel unificado
 function editarChoferApp(id, nombre, pin, placas, noEco) {
     document.getElementById('form-id').value = id;
     document.getElementById('form-nombre').value = nombre;
@@ -1684,7 +1628,7 @@ function editarChoferApp(id, nombre, pin, placas, noEco) {
     document.getElementById('form-placas').value = placas;
     document.getElementById('form-no-eco').value = noEco;
     document.getElementById('btnCancelarEdicion').style.display = 'inline-block';
-    window.scrollTo({top: 0, behavior: 'smooth'}); // Hace scroll suave hacia el formulario arriba
+    window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
 function limpiarFormChoferApp() {
@@ -1696,8 +1640,6 @@ function limpiarFormChoferApp() {
     document.getElementById('btnCancelarEdicion').style.display = 'none';
 }
 
-// OBSERVACIÓN: Realiza una petición fetch asíncrona hacia get_ruta_data (declarado arriba de este archivo), 
-// para construir de forma dinámica todo el HTML del Modal de detalle (Odómetros, fotos y paradas)
 function verDetalleRuta(id) {
     const modal = document.getElementById('detalleModal');
     const body = document.getElementById('modalBody');
@@ -1726,7 +1668,6 @@ function verDetalleRuta(id) {
             const fotoInicioSrc = prepararSrc(r.foto_inicio);
             const fotoFinSrc = prepararSrc(r.foto_fin);
 
-            // Objetos estructurados para marca de agua de odómetros
             const datosOdoInicio = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Km Inicial": (r.km_inicial || 0) + ' km', "Fecha": r.fecha_inicio || '' }).replace(/"/g, '&quot;');
             const datosOdoFin = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Km Final": (r.km_final || 0) + ' km', "Total Recorrido": (r.km_total || 0) + ' km', "Fecha": r.fecha_fin || r.fecha_inicio || '' }).replace(/"/g, '&quot;');
 
@@ -1740,26 +1681,34 @@ function verDetalleRuta(id) {
                 const gastosParada = gastos.filter(g => g.parada_id == p.id);
                 const cucasParada = cucas.filter(c => c.parada_id == p.id);
                 
+                // 💰 GASTOS: Foto a la izquierda, detalles u observaciones a la derecha
                 let gastosDetalleHtml = '';
                 if (gastosParada.length > 0) {
-                    gastosDetalleHtml = '<div style="margin-top:8px; padding-left:15px; border-left:2px solid #4A148C; font-size:13px;">';
-                    gastosDetalleHtml += '<p style="font-weight:bold; color:#4A148C; margin-bottom:4px;">💰 Gastos:</p>';
+                    gastosDetalleHtml = '<div style="margin-top:8px; padding-left:12px; border-left:3px solid #4A148C; font-size:13px;">';
+                    gastosDetalleHtml += '<p style="font-weight:bold; color:#4A148C; margin-bottom:6px;">💰 Gastos:</p>';
                     gastosParada.forEach(gp => {
-                        gastosDetalleHtml += `<div style="margin-bottom: 6px;">• <strong>${gp.concepto}:</strong> $${parseFloat(gp.monto).toFixed(2)}`;
+                        const obsGasto = (gp.observaciones && gp.observaciones.trim() !== '') ? gp.observaciones : 'Sin observaciones';
+                        
+                        gastosDetalleHtml += `<div style="margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px; background: #ffffff; padding: 8px; border-radius: 6px; border: 1px solid #e0e0e0;">`;
                         
                         if (gp.foto && gp.foto.trim() !== '') {
                             let fotoSrc = prepararSrc(gp.foto);
-                            const datosGasto = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Concepto": gp.concepto, "Monto": "$" + parseFloat(gp.monto).toFixed(2), "Fecha": gp.fecha || '' }).replace(/"/g, '&quot;');
+                            const datosGasto = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "Concepto": gp.concepto, "Monto": "$" + parseFloat(gp.monto).toFixed(2), "Observaciones": obsGasto, "Fecha": gp.fecha || '' }).replace(/"/g, '&quot;');
                             
-                            gastosDetalleHtml += `<div style="margin-top: 4px;"><img src="${fotoSrc}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #ddd;" onclick="verImagenGrandeConMarca('${fotoSrc}', '💰 Comprobante de Gasto', ${datosGasto})" title="Ver comprobante con marca de agua"></div>`;
+                            gastosDetalleHtml += `<div style="flex-shrink: 0;"><img src="${fotoSrc}" style="width: 65px; height: 65px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid #ddd;" onclick="verImagenGrandeConMarca('${fotoSrc}', '💰 Comprobante de Gasto', ${datosGasto})" title="Ver comprobante"></div>`;
                         }
+                        
+                        gastosDetalleHtml += `<div style="flex-grow: 1;">
+                            <div>• <strong>${gp.concepto}:</strong> <span style="color:#2e7d32; font-weight:bold;">$${parseFloat(gp.monto).toFixed(2)}</span></div>
+                            <div style="font-size:11px; color:#555; margin-top:3px; background:#fafafa; padding:4px 6px; border-radius:4px; border:1px solid #eee;">💬 <strong>Obs:</strong> ${obsGasto}</div>
+                        </div>`;
                         
                         gastosDetalleHtml += `</div>`;
                     });
                     gastosDetalleHtml += '</div>';
                 }
 
-                // 📄 Renderizado exclusivo de Cucas (Agrupación de múltiples páginas por Cuca)
+                // 📄 QUKAS: Fotos a la izquierda, número, fecha y observaciones a un costado
                 let cucasDetalleHtml = '';
                 if (cucasParada.length > 0) {
                     const cucasAgrupadas = {};
@@ -1768,9 +1717,13 @@ function verDetalleRuta(id) {
                         if (!cucasAgrupadas[num]) {
                             cucasAgrupadas[num] = {
                                 numero_cuca: num,
+                                observaciones: cp.observaciones || '',
                                 fecha: cp.fecha || '',
                                 fotos: []
                             };
+                        }
+                        if (cp.observaciones && cp.observaciones.trim() !== '') {
+                            cucasAgrupadas[num].observaciones = cp.observaciones;
                         }
                         if (cp.foto_cuca && cp.foto_cuca.trim() !== '') {
                             cucasAgrupadas[num].fotos.push(cp.foto_cuca);
@@ -1781,25 +1734,34 @@ function verDetalleRuta(id) {
                     cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:6px; font-size:12px;">📄 Comprobantes Quka (Facturas):</p>';
 
                     Object.values(cucasAgrupadas).forEach(cucaGroup => {
-                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Quka": cucaGroup.numero_cuca, "Páginas": cucaGroup.fotos.length, "Fecha": cucaGroup.fecha }).replace(/"/g, '&quot;');
+                        const obsCuca = (cucaGroup.observaciones && cucaGroup.observaciones.trim() !== '') ? cucaGroup.observaciones : 'Sin observaciones';
+                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Quka": cucaGroup.numero_cuca, "Observaciones": obsCuca, "Páginas": cucaGroup.fotos.length, "Fecha": cucaGroup.fecha }).replace(/"/g, '&quot;');
 
                         cucasDetalleHtml += `<div style="margin-bottom: 8px; padding-bottom:6px; border-bottom:1px dashed #c8e6c9;">
-                            <div>• <strong>No. Quka:</strong> ${cucaGroup.numero_cuca} (${cucaGroup.fotos.length} página(s))</div>
-                            <div>• <strong>Fecha:</strong> ${cucaGroup.fecha}</div>`;
+                            <div style="display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;">`;
                         
                         if (cucaGroup.fotos.length > 0) {
-                            cucasDetalleHtml += `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">`;
+                            cucasDetalleHtml += `<div style="display:flex; flex-wrap:wrap; gap:6px; flex-shrink: 0;">`;
                             cucaGroup.fotos.forEach((fotoPath, idx) => {
                                 let fotoCucaSrc = prepararSrc(fotoPath);
                                 cucasDetalleHtml += `
                                     <div style="text-align:center;">
-                                        <img src="${fotoCucaSrc}" style="width: 75px; height: 75px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '📄 Quka ${cucaGroup.numero_cuca} (Pág ${idx + 1})', ${datosCuca})" title="Ver Pág ${idx + 1}">
+                                        <img src="${fotoCucaSrc}" style="width: 65px; height: 65px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '📄 Quka ${cucaGroup.numero_cuca} (Pág ${idx + 1})', ${datosCuca})" title="Ver Pág ${idx + 1}">
                                         <div style="font-size:10px; color:#555; margin-top:2px;">Pág ${idx + 1}</div>
                                     </div>`;
                             });
                             cucasDetalleHtml += `</div>`;
                         }
-                        cucasDetalleHtml += `</div>`;
+
+                        cucasDetalleHtml += `<div style="flex-grow: 1; min-width: 180px;">
+                            <div>• <strong>No. Quka:</strong> ${cucaGroup.numero_cuca} (${cucaGroup.fotos.length} pág(s))</div>
+                            <div>• <strong>Fecha:</strong> ${cucaGroup.fecha}</div>
+                            <div style="margin-top: 3px; background: #ffffff; padding: 4px 6px; border-radius: 4px; border: 1px solid #d0e8d0; font-size:11px;">
+                                💬 <strong>Obs:</strong> ${obsCuca}
+                            </div>
+                        </div>`;
+
+                        cucasDetalleHtml += `</div></div>`;
                     });
                     cucasDetalleHtml += '</div>';
                 } else {
@@ -1858,7 +1820,6 @@ function verDetalleRuta(id) {
         });
 }
 
-// OBSERVACIÓN: Funciones que crean formularios ocultos (on-the-fly) para hacer submits rápidos al editar elementos simples
 function editarPlaca(id, actual) {
     let nueva = prompt("Editar placa:", actual);
     if (nueva && nueva !== actual) {
@@ -1881,7 +1842,6 @@ function editarNoEconomico(id, actual) {
     }
 }
 
-// OBSERVACIÓN: Petición a la API (get_semana_data) para construir la tabla detallada de viajes de una semana concreta
 document.getElementById('btnDetalleSemana')?.addEventListener('click', function() {
     const semanaSelect = document.getElementById('semanaSelect');
     const semanaValor = semanaSelect.value;
