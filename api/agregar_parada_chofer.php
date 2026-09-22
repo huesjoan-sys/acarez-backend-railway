@@ -53,7 +53,7 @@ try {
     // Iniciar transacción SQL
     $conn->begin_transaction();
 
-    // BORRADO PREVIO (Opción A): Limpiar gastos y cucas anteriores si se está reescribiendo la parada
+    // BORRADO PREVIO: Limpiar gastos y cucas anteriores si se está reescribiendo la parada
     $conn->query("DELETE FROM gastos WHERE parada_id = $parada_id");
     $conn->query("DELETE FROM cucas WHERE parada_id = $parada_id");
 
@@ -63,7 +63,7 @@ try {
     $stmtParada->execute();
     $stmtParada->close();
 
-    // 3. Procesar Gastos y Fotos de Gastos
+    // 3. Procesar Gastos, Observaciones y Fotos de Gastos
     $conceptos_keys = [
         'Hotel / Hospedaje' => 'hotel',
         'Caseta'            => 'caseta',
@@ -72,10 +72,12 @@ try {
         'Gasolina / Diesel' => 'gasolina'
     ];
     
-    $stmtGasto = $conn->prepare("INSERT INTO gastos (ruta_id, parada_id, concepto, monto, foto, fecha) VALUES (?, ?, ?, ?, ?, NOW())");
+    // 👈 SE INCLUYE LA COLUMNA 'observaciones' EN LA SENTENCIA
+    $stmtGasto = $conn->prepare("INSERT INTO gastos (ruta_id, parada_id, concepto, monto, observaciones, foto, fecha) VALUES (?, ?, ?, ?, ?, ?, NOW())");
 
     foreach ($conceptos_keys as $concepto_nombre => $key) {
         $monto = floatval($_POST["gasto_$key"] ?? 0);
+        $obs_gasto = trim($_POST["observaciones_$key"] ?? ''); // 👈 SE CAPTURAN LAS OBSERVACIONES
         
         if ($monto > 0) {
             $ruta_foto_bd = null;
@@ -92,18 +94,20 @@ try {
                 }
             }
 
-            $stmtGasto->bind_param("iisds", $ruta_id, $parada_id, $concepto_nombre, $monto, $ruta_foto_bd);
+            // 👈 TIPOS DE PARÁMETROS: iisdss (int, int, string, double, string, string)
+            $stmtGasto->bind_param("iisdss", $ruta_id, $parada_id, $concepto_nombre, $monto, $obs_gasto, $ruta_foto_bd);
             $stmtGasto->execute();
         }
     }
     $stmtGasto->close();
 
-    // 4. Procesar Cucas (Facturas) enviadas desde la app
-    $stmtCuca = $conn->prepare("INSERT INTO cucas (ruta_id, parada_id, numero_cuca, foto_cuca, fecha) VALUES (?, ?, ?, ?, NOW())");
+    // 4. Procesar Cucas (Facturas) y Observaciones enviadas desde la app
+    $stmtCuca = $conn->prepare("INSERT INTO cucas (ruta_id, parada_id, numero_cuca, observaciones, foto_cuca, fecha) VALUES (?, ?, ?, ?, ?, NOW())");
     
     $i = 0;
     while (isset($_POST["numero_cuca_$i"])) {
         $numero_cuca = trim($_POST["numero_cuca_$i"]);
+        $observaciones_cuca = trim($_POST["observaciones_cuca_$i"] ?? ''); 
         
         if (!empty($numero_cuca)) {
             $fotos_procesadas = 0;
@@ -120,7 +124,7 @@ try {
                     
                     if (move_uploaded_file($tmp_name, $destino_cuca)) {
                         $ruta_foto_cuca_bd = "uploads/cucas/" . $nuevo_nombre_cuca;
-                        $stmtCuca->bind_param("iiss", $ruta_id, $parada_id, $numero_cuca, $ruta_foto_cuca_bd);
+                        $stmtCuca->bind_param("iisss", $ruta_id, $parada_id, $numero_cuca, $observaciones_cuca, $ruta_foto_cuca_bd);
                         $stmtCuca->execute();
                         $fotos_procesadas++;
                     }
@@ -138,7 +142,7 @@ try {
                 
                 if (move_uploaded_file($tmp_name_cuca, $destino_final_cuca)) {
                     $ruta_foto_cuca_bd = "uploads/cucas/" . $nuevo_nombre_cuca;
-                    $stmtCuca->bind_param("iiss", $ruta_id, $parada_id, $numero_cuca, $ruta_foto_cuca_bd);
+                    $stmtCuca->bind_param("iisss", $ruta_id, $parada_id, $numero_cuca, $observaciones_cuca, $ruta_foto_cuca_bd);
                     $stmtCuca->execute();
                     $fotos_procesadas++;
                 }
@@ -147,7 +151,7 @@ try {
             // Opción C: Cuca sin foto adjunta
             if ($fotos_procesadas === 0) {
                 $ruta_foto_cuca_bd = "";
-                $stmtCuca->bind_param("iiss", $ruta_id, $parada_id, $numero_cuca, $ruta_foto_cuca_bd);
+                $stmtCuca->bind_param("iisss", $ruta_id, $parada_id, $numero_cuca, $observaciones_cuca, $ruta_foto_cuca_bd);
                 $stmtCuca->execute();
             }
         }
