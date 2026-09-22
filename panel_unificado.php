@@ -1731,11 +1731,11 @@ function verDetalleRuta(id) {
                     });
 
                     cucasDetalleHtml = '<div style="margin-top:6px; padding:8px 12px; border-left:3px solid #2e7d32; background:#f4fbf4; border-radius:6px; font-size:12px; line-height:1.3;">';
-                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:6px; font-size:12px;">📄 Comprobantes Quka (Facturas):</p>';
+                    cucasDetalleHtml += '<p style="font-weight:bold; color:#2e7d32; margin-bottom:6px; font-size:12px;">📄 Comprobantes QK (Facturas):</p>';
 
                     Object.values(cucasAgrupadas).forEach(cucaGroup => {
                         const obsCuca = (cucaGroup.observaciones && cucaGroup.observaciones.trim() !== '') ? cucaGroup.observaciones : 'Sin observaciones';
-                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. Quka": cucaGroup.numero_cuca, "Observaciones": obsCuca, "Páginas": cucaGroup.fotos.length, "Fecha": cucaGroup.fecha }).replace(/"/g, '&quot;');
+                        const datosCuca = JSON.stringify({ "Ruta": numRuta, "Chofer": r.chofer, "No. QK": cucaGroup.numero_cuca, "Observaciones": obsCuca, "Páginas": cucaGroup.fotos.length, "Fecha": cucaGroup.fecha }).replace(/"/g, '&quot;');
 
                         cucasDetalleHtml += `<div style="margin-bottom: 8px; padding-bottom:6px; border-bottom:1px dashed #c8e6c9;">
                             <div style="display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;">`;
@@ -1746,7 +1746,7 @@ function verDetalleRuta(id) {
                                 let fotoCucaSrc = prepararSrc(fotoPath);
                                 cucasDetalleHtml += `
                                     <div style="text-align:center;">
-                                        <img src="${fotoCucaSrc}" style="width: 65px; height: 65px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '📄 Quka ${cucaGroup.numero_cuca} (Pág ${idx + 1})', ${datosCuca})" title="Ver Pág ${idx + 1}">
+                                        <img src="${fotoCucaSrc}" style="width: 65px; height: 65px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #2e7d32;" onclick="verImagenGrandeConMarca('${fotoCucaSrc}', '📄 QK ${cucaGroup.numero_cuca} (Pág ${idx + 1})', ${datosCuca})" title="Ver Pág ${idx + 1}">
                                         <div style="font-size:10px; color:#555; margin-top:2px;">Pág ${idx + 1}</div>
                                     </div>`;
                             });
@@ -1754,7 +1754,7 @@ function verDetalleRuta(id) {
                         }
 
                         cucasDetalleHtml += `<div style="flex-grow: 1; min-width: 180px;">
-                            <div>• <strong>No. Quka:</strong> ${cucaGroup.numero_cuca} (${cucaGroup.fotos.length} pág(s))</div>
+                            <div>• <strong>No. QK:</strong> ${cucaGroup.numero_cuca} (${cucaGroup.fotos.length} pág(s))</div>
                             <div>• <strong>Fecha:</strong> ${cucaGroup.fecha}</div>
                             <div style="margin-top: 3px; background: #ffffff; padding: 4px 6px; border-radius: 4px; border: 1px solid #d0e8d0; font-size:11px;">
                                 💬 <strong>Obs:</strong> ${obsCuca}
@@ -1765,7 +1765,7 @@ function verDetalleRuta(id) {
                     });
                     cucasDetalleHtml += '</div>';
                 } else {
-                    cucasDetalleHtml = '<div style="margin-top:6px; font-size:12px; color:#888;">Sin Qukas (facturas) registradas en esta parada</div>';
+                    cucasDetalleHtml = '<div style="margin-top:6px; font-size:12px; color:#888;">Sin QK (facturas) registradas en esta parada</div>';
                 }
 
                 const bgColor = esCompletado ? '#e8f5e9' : '#ffffff';
@@ -1811,7 +1811,7 @@ function verDetalleRuta(id) {
                     <p style="margin-top:10px;"><strong>Total de Gastos de la Ruta:</strong> <span style="color:green; font-weight:bold;">$${parseFloat(r.total_gastos || 0).toFixed(2)}</span></p>
                     <p><strong>Estatus General:</strong> <span class="badge badge-${r.estatus}">${r.estatus}</span></p>
                 </div>
-                <h3 style="margin-top:15px; margin-bottom:10px;">📍 Destinos, Qukas y Gastos por Parada</h3>
+                <h3 style="margin-top:15px; margin-bottom:10px;">📍 Destinos, QK y Gastos por Parada</h3>
                 ${paradasHtml}
             `;
         })
