@@ -45,32 +45,63 @@ if (!$result) {
 
 $output = fopen('php://output', 'w');
 
+// Cabeceras del CSV con columnas separadas por concepto
 fputcsv($output, [
     'RUTA', 'FECHA', 'HORA', 'CHOFER', 'AUXILIAR', 'VEHICULO',
-    'ORIGEN', 'KM INICIAL', 'KM FINAL', 'KM RECORRIDO', 
-    'DETALLE DE GASTOS', 'TOTAL GASTOS', 'ESTATUS'
+    'ORIGEN', 'KM INICIAL', 'KM FINAL', 'KM RECORRIDO',
+    'COMIDA', 'HOTEL', 'CASETAS', 'ESTACIONAMIENTO', 'GASOLINA', 'OTROS',
+    'TOTAL GASTOS', 'ESTATUS'
 ]);
 
 while ($row = $result->fetch_assoc()) {
     $f_inicio_formato = !empty($row['fecha_inicio']) ? date('d/m/Y', strtotime($row['fecha_inicio'])) : 'N/A';
     $h_ini_cruda = !empty($row['fecha_inicio']) ? date('H:i', strtotime($row['fecha_inicio'])) : '00:00';
     $h_inicio_formato = ($h_ini_cruda == '00:00') ? 'No registrada' : $h_ini_cruda;
-    
+
     $id_ruta = $row['id'];
-    $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto FROM gastos WHERE ruta_id = $id_ruta GROUP BY concepto";
+
+    // Obtener gastos agrupados por concepto
+    $sql_gastos = "SELECT concepto, SUM(monto) as total_concepto 
+                   FROM gastos 
+                   WHERE ruta_id = $id_ruta 
+                   GROUP BY concepto";
     $res_gastos = $conn->query($sql_gastos);
-    $detalle_gastos = [];
-    while ($g = $res_gastos->fetch_assoc()) {
-        $detalle_gastos[] = $g['concepto'] . ': $' . number_format($g['total_concepto'], 2);
+
+    // Inicializar acumuladores
+    $comida = 0.0;
+    $hotel = 0.0;
+    $casetas = 0.0;
+    $estacionamiento = 0.0;
+    $gasolina = 0.0;
+    $otros = 0.0;
+
+    if ($res_gastos) {
+        while ($g = $res_gastos->fetch_assoc()) {
+            $concepto = mb_strtolower(trim($g['concepto']), 'UTF-8');
+            $monto = floatval($g['total_concepto']);
+
+            if (strpos($concepto, 'comida') !== false || strpos($concepto, 'alimento') !== false) {
+                $comida += $monto;
+            } elseif (strpos($concepto, 'hotel') !== false || strpos($concepto, 'hospedaje') !== false) {
+                $hotel += $monto;
+            } elseif (strpos($concepto, 'caseta') !== false || strpos($concepto, 'peaje') !== false) {
+                $casetas += $monto;
+            } elseif (strpos($concepto, 'estacionamiento') !== false || strpos($concepto, 'estacion') !== false || strpos($concepto, 'pension') !== false || strpos($concepto, 'pensión') !== false) {
+                $estacionamiento += $monto;
+            } elseif (strpos($concepto, 'gasolina') !== false || strpos($concepto, 'diesel') !== false || strpos($concepto, 'diésel') !== false || strpos($concepto, 'combustible') !== false) {
+                $gasolina += $monto;
+            } else {
+                $otros += $monto;
+            }
+        }
     }
-    $texto_gastos = empty($detalle_gastos) ? 'Sin gastos' : implode(" | ", $detalle_gastos);
 
     $ruta_num = $row['numero_ruta'] ?? 'Sin número';
-    $chofer = str_replace(["\t", "\n", "\r", ","], " ", $row['chofer']);
+    $chofer = str_replace(["\t", "\n", "\r", ","], " ", $row['chofer'] ?? '');
     $auxiliar = str_replace(["\t", "\n", "\r", ","], " ", $row['auxiliar'] ?? 'Sin auxiliar');
-    $vehiculo = str_replace(["\t", "\n", "\r", ","], " ", ($row['placas'] . ' ' . $row['no_economico']));
-    $origen = str_replace(["\t", "\n", "\r", ","], " ", $row['origen']);
-    
+    $vehiculo = str_replace(["\t", "\n", "\r", ","], " ", ($row['placas'] ?? '') . ' ' . ($row['no_economico'] ?? ''));
+    $origen = str_replace(["\t", "\n", "\r", ","], " ", $row['origen'] ?? '');
+
     fputcsv($output, [
         $ruta_num,
         $f_inicio_formato,
@@ -82,9 +113,14 @@ while ($row = $result->fetch_assoc()) {
         $row['km_inicial'] ?? 0,
         $row['km_final'] ?? 0,
         $row['km_total'] ?? 0,
-        $texto_gastos,
-        $row['total_general'] ?? 0,
-        ucfirst($row['estatus'])
+        number_format($comida, 2, '.', ''),
+        number_format($hotel, 2, '.', ''),
+        number_format($casetas, 2, '.', ''),
+        number_format($estacionamiento, 2, '.', ''),
+        number_format($gasolina, 2, '.', ''),
+        number_format($otros, 2, '.', ''),
+        number_format($row['total_general'] ?? 0, 2, '.', ''),
+        ucfirst($row['estatus'] ?? '')
     ]);
 }
 
